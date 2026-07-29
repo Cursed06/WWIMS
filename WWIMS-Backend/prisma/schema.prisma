@@ -1,0 +1,215 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  user_id       String   @id @db.VarChar(20)
+  username      String   @unique @db.VarChar(50)
+  password_hash String   @db.Text
+  role          String   @db.VarChar(20) // ADMIN_PUSAT, ADMIN_POS, etc.
+  pos_id        String?  @db.VarChar(20)
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+
+  pos          POS?                   @relation(fields: [pos_id], references: [pos_id])
+  transactions TransaksiPenimbangan[]
+  withdrawals  TransaksiPenarikan[]
+  audit_logs   AuditLog[]
+  import_logs  ImportLog[]
+
+  @@map("users")
+}
+
+model POS {
+  pos_id     String   @id @db.VarChar(20)
+  pos_name   String   @db.VarChar(100)
+  address    String   @db.Text
+  created_at DateTime @default(now())
+
+  users        User[]
+  nasabahs     Nasabah[]
+  pos_vendors  PosVendor[]
+  transactions TransaksiPenimbangan[]
+  withdrawals  TransaksiPenarikan[]
+
+  @@map("pos")
+}
+
+model Vendor {
+  vendor_id   String   @id @db.VarChar(20)
+  vendor_name String   @db.VarChar(100)
+  contact     String?  @db.VarChar(100)
+  created_at  DateTime @default(now())
+
+  pos_vendors  PosVendor[]
+  prices       VendorPrice[]
+  transactions TransaksiPenimbangan[]
+
+  @@map("vendors")
+}
+
+model PosVendor {
+  pos_id    String @db.VarChar(20)
+  vendor_id String @db.VarChar(20)
+
+  pos    POS    @relation(fields: [pos_id], references: [pos_id])
+  vendor Vendor @relation(fields: [vendor_id], references: [vendor_id])
+
+  @@id([pos_id, vendor_id])
+  @@map("pos_vendors")
+}
+
+model WasteCategory {
+  category_id   String @id @db.VarChar(10)
+  category_name String @db.VarChar(50)
+
+  types WasteType[]
+
+  @@map("waste_categories")
+}
+
+model WasteType {
+  waste_type_id String @id @db.VarChar(20)
+  category_id   String @db.VarChar(10)
+  waste_name    String @db.VarChar(100)
+  unit          String @default("kg") @db.VarChar(10) // kg, liter, biji
+
+  category WasteCategory @relation(fields: [category_id], references: [category_id])
+
+  prices              VendorPrice[]
+  transaction_details DetailPenimbangan[]
+
+  @@map("waste_types")
+}
+
+model VendorPrice {
+  price_id      Int      @id @default(autoincrement())
+  vendor_id     String   @db.VarChar(20)
+  waste_type_id String   @db.VarChar(20)
+  buy_price     Decimal  @db.Decimal(12, 2)
+  sell_price    Decimal  @db.Decimal(12, 2)
+  updated_at    DateTime @default(now()) @updatedAt
+
+  vendor     Vendor      @relation(fields: [vendor_id], references: [vendor_id])
+  waste_type WasteType   @relation(fields: [waste_type_id], references: [waste_type_id])
+  history    PriceHistory[]
+
+  @@unique([vendor_id, waste_type_id])
+  @@map("vendor_prices")
+}
+
+model PriceHistory {
+  history_id     Int      @id @default(autoincrement())
+  price_id       Int
+  old_buy_price  Decimal  @db.Decimal(12, 2)
+  new_buy_price  Decimal  @db.Decimal(12, 2)
+  old_sell_price Decimal  @db.Decimal(12, 2)
+  new_sell_price Decimal  @db.Decimal(12, 2)
+  changed_at     DateTime @default(now())
+
+  price VendorPrice @relation(fields: [price_id], references: [price_id])
+
+  @@map("price_history")
+}
+
+model Nasabah {
+  customer_id String   @id @db.VarChar(20) // e.g., WW-BA-0001
+  pos_id      String   @db.VarChar(20)
+  name        String   @db.VarChar(100)
+  address     String   @db.Text
+  phone       String?  @db.VarChar(20)
+  balance     Decimal  @default(0) @db.Decimal(12, 2)
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+
+  pos          POS                    @relation(fields: [pos_id], references: [pos_id])
+  transactions TransaksiPenimbangan[]
+  withdrawals  TransaksiPenarikan[]
+
+  @@map("nasabah")
+}
+
+model TransaksiPenimbangan {
+  transaction_id   Int      @id @default(autoincrement())
+  customer_id      String   @db.VarChar(20)
+  pos_id           String   @db.VarChar(20)
+  vendor_id        String   @db.VarChar(20)
+  transaction_date DateTime @default(now())
+  total_buy_value  Decimal  @db.Decimal(12, 2)
+  total_sell_value Decimal  @db.Decimal(12, 2)
+  margin           Decimal  @db.Decimal(12, 2)
+  pos_profit       Decimal  @db.Decimal(12, 2)
+  pusat_profit     Decimal  @db.Decimal(12, 2)
+  nasabah_credit   Decimal  @db.Decimal(12, 2)
+  created_by       String?  @db.VarChar(20)
+
+  customer Nasabah @relation(fields: [customer_id], references: [customer_id])
+  pos      POS     @relation(fields: [pos_id], references: [pos_id])
+  vendor   Vendor  @relation(fields: [vendor_id], references: [vendor_id])
+  creator  User?   @relation(fields: [created_by], references: [user_id])
+
+  details DetailPenimbangan[]
+
+  @@map("transaksi_penimbangan")
+}
+
+model DetailPenimbangan {
+  detail_id      Int     @id @default(autoincrement())
+  transaction_id Int
+  waste_type_id  String  @db.VarChar(20)
+  quantity       Decimal @db.Decimal(10, 2)
+  unit           String  @db.VarChar(10) // kg, liter, biji
+  price_snapshot Decimal @db.Decimal(12, 2) // buy price snapshot
+  subtotal       Decimal @db.Decimal(12, 2) // quantity * price_snapshot
+
+  transaction TransaksiPenimbangan @relation(fields: [transaction_id], references: [transaction_id], onDelete: Cascade)
+  waste_type  WasteType            @relation(fields: [waste_type_id], references: [waste_type_id])
+
+  @@map("detail_penimbangan")
+}
+
+model TransaksiPenarikan {
+  withdrawal_id   Int      @id @default(autoincrement())
+  customer_id     String   @db.VarChar(20)
+  pos_id          String   @db.VarChar(20)
+  amount          Decimal  @db.Decimal(12, 2)
+  proof_image_url String?  @db.Text
+  withdrawal_date DateTime @default(now())
+  created_by      String?  @db.VarChar(20)
+
+  customer Nasabah @relation(fields: [customer_id], references: [customer_id])
+  pos      POS     @relation(fields: [pos_id], references: [pos_id])
+  creator  User?   @relation(fields: [created_by], references: [user_id])
+
+  @@map("transaksi_penarikan")
+}
+
+model AuditLog {
+  log_id    Int      @id @default(autoincrement())
+  user_id   String?  @db.VarChar(20)
+  action    String   @db.VarChar(100)
+  entity    String   @db.VarChar(50)
+  entity_id String?  @db.VarChar(50)
+  timestamp DateTime @default(now())
+
+  creator User? @relation(fields: [user_id], references: [user_id])
+
+  @@map("audit_logs")
+}
+
+model ImportLog {
+  import_id  Int      @id @default(autoincrement())
+  user_id    String?  @db.VarChar(20)
+  file_name  String   @db.VarChar(255)
+  status     String   @db.VarChar(50)
+  created_at DateTime @default(now())
+
+  creator User? @relation(fields: [user_id], references: [user_id])
+
+  @@map("import_logs")
+}
