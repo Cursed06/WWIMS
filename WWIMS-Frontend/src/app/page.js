@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Building2, Users, Scale, CreditCard, RefreshCw, Plus,
   Trash2, Search, ArrowRight, ShieldAlert, Award, FileText, CheckCircle, Upload,
-  Layers, LogOut, Tag, UserPlus, X, Calendar
+  Layers, LogOut, Tag, UserPlus, X, Calendar, Download, Recycle, Banknote, Wallet
 } from 'lucide-react';
 
 const API_BASE = "http://localhost:5001/api";
@@ -31,6 +31,15 @@ const SAMPLE_NASABAHS = [
   { customer_id: 'WW-BA-0076', name: 'Putri Ningrum', address: 'Jl. Dahlia No. 19, RT 02', created_at: '2023-06-01', balance: 0, status: 'INACTIVE', pos_id: 'BA' },
   { customer_id: 'WW-BA-0142', name: 'Hani Lestari', address: 'Jl. Tulip No. 7, RT 05', created_at: '2025-02-24', balance: 0, status: 'ACTIVE', pos_id: 'BA' },
   { customer_id: 'WW-BA-0109', name: 'Rudi Santoso', address: 'Jl. Flamboyan No. 4, RT 06', created_at: '2023-09-10', balance: 57000, status: 'ACTIVE', pos_id: 'BA' }
+];
+
+const SAMPLE_TRANSACTIONS = [
+  { id: 'TX-20250224-001', customer_name: 'Siti Rahayu', customer_id: 'WW-BA-0041', pos_id: 'BA', weight: '3.5 kg', price: 'Rp 5.250', source: 'Manual', time: '13.25 WITA', date: '24 Feb 2025' },
+  { id: 'TX-20250224-002', customer_name: 'Budi Wahyono', customer_id: 'WW-BA-0027', pos_id: 'BA', weight: '7.2 kg', price: 'Rp 14.400', source: 'Excel', time: '11.10 WITA', date: '24 Feb 2025' },
+  { id: 'TX-20250224-003', customer_name: 'Murti Astuti', customer_id: 'WW-BA-0088', pos_id: 'BA', weight: '2.0 kg', price: 'Rp 6.000', source: 'Manual', time: '10.45 WITA', date: '24 Feb 2025' },
+  { id: 'TX-20250224-004', customer_name: 'Dewi Hapsari', customer_id: 'WW-BA-0013', pos_id: 'BA', weight: '5.5 kg', price: 'Rp 8.250', source: 'Excel', time: '09.30 WITA', date: '23 Feb 2025' },
+  { id: 'TX-20250224-005', customer_name: 'Rudi Santoso', customer_id: 'WW-BA-0109', pos_id: 'BA', weight: '1.8 kg', price: 'Rp 7.200', source: 'Manual', time: '08.15 WITA', date: '23 Feb 2025' },
+  { id: 'TX-20250224-006', customer_name: 'Hani Lestari', customer_id: 'WW-BA-0142', pos_id: 'BA', weight: '4.1 kg', price: 'Rp 6.150', source: 'Manual', time: '14.05 WITA', date: '22 Feb 2025' }
 ];
 
 const getCurrentDateTimeLocal = () => {
@@ -99,6 +108,8 @@ export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState('SETORAN'); // SETORAN, NASABAH, HARGA, PENARIKAN
   const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState('Februari');
+  const [selectedYear, setSelectedYear] = useState('2025');
 
   // Forms state
   const [newPosForm, setNewPosForm] = useState({ pos_id: '', pos_name: '', address: '' });
@@ -316,6 +327,17 @@ export default function Home() {
   const nasabahTotalCount = availableNasabahs.length;
   const nasabahActiveCount = availableNasabahs.filter(n => n.status !== 'INACTIVE').length;
   const nasabahInactiveCount = availableNasabahs.filter(n => n.status === 'INACTIVE').length;
+
+  const openNewDepositModal = () => {
+    setSelectedNasabah(null);
+    setNasabahSearchText('');
+    setTanggalSetor(getCurrentDateTimeLocal());
+    setWeighItems([
+      { kategori: '', jenis: '', berat: '', pengepul: 'Bali Wastu Lestari' }
+    ]);
+    setModalType('SETORAN');
+    setIsModalOpen(true);
+  };
 
   const handleDepositSubmit = async (e) => {
     if (e) e.preventDefault();
@@ -616,8 +638,7 @@ export default function Home() {
                     <button 
                       className="speed-dial-pill"
                       onClick={() => {
-                        setModalType('SETORAN');
-                        setIsModalOpen(true);
+                        openNewDepositModal();
                         setIsAddDropdownOpen(false);
                       }}
                     >
@@ -1087,26 +1108,103 @@ export default function Home() {
                       <div className="pt">Transaksi <span>Setor</span></div>
                       <div className="ps">{history.length || 238} transaksi bulan ini</div>
                     </div>
+                    <div className="ph2-r" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <select 
+                        className="fi" 
+                        style={{ width: 'auto', height: '36px', fontSize: '12.5px', padding: '0 12px' }}
+                        value={selectedMonth}
+                        onChange={(e) => setSelectedMonth(e.target.value)}
+                      >
+                        <option value="Januari">Januari</option>
+                        <option value="Februari">Februari</option>
+                        <option value="Maret">Maret</option>
+                        <option value="April">April</option>
+                        <option value="Mei">Mei</option>
+                        <option value="Juni">Juni</option>
+                        <option value="Juli">Juli</option>
+                        <option value="Agustus">Agustus</option>
+                        <option value="September">September</option>
+                        <option value="Oktober">Oktober</option>
+                        <option value="November">November</option>
+                        <option value="Desember">Desember</option>
+                      </select>
+                      <select 
+                        className="fi" 
+                        style={{ width: 'auto', height: '36px', fontSize: '12.5px', padding: '0 12px' }}
+                        value={selectedYear}
+                        onChange={(e) => setSelectedYear(e.target.value)}
+                      >
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                      </select>
+                      <button 
+                        className="btn btn-ghost" 
+                        style={{ height: '36px', padding: '0 12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                        onClick={() => showToast('Export data transaksi...')}
+                      >
+                        <Download size={14} /> Export
+                      </button>
+                      <button 
+                        className="btn btn-gold" 
+                        style={{ height: '36px' }}
+                        onClick={() => openNewDepositModal()}
+                      >
+                        + Setoran Baru
+                      </button>
+                    </div>
                   </div>
 
                   <div className="stats">
+                    {/* KPI 1: Transaksi Setor Icon in Yellow Brand Color on stat hl */}
                     <div className="stat hl">
-                      <div className="stat-top"><div className="si si-w">📋</div><span className="trend t-uw">+18</span></div>
+                      <div className="stat-top">
+                        <div className="si" style={{ background: 'var(--gold-s)', color: 'var(--gold)' }}>
+                          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '18px', height: '18px' }}>
+                            <path d="M17.997 4.17A3 3 0 0 1 20 7v12a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 2.003-2.83A4 4 0 0 0 10 8h4a4 4 0 0 0 3.98-3.597zM15 15H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2m0-4H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2m-1-9a2 2 0 1 1 0 4h-4a2 2 0 1 1 0-4z" />
+                          </svg>
+                        </div>
+                        <span className="trend t-uw">+18</span>
+                      </div>
                       <div className="stat-num">{history.length || 238}</div>
                       <div className="stat-lbl">Total Transaksi</div>
                     </div>
+
+                    {/* KPI 2: Jenis Sampah Icon with Brand Green & Yellow Background */}
                     <div className="stat">
-                      <div className="stat-top"><div className="si si-g">✅</div><span className="trend t-up">84%</span></div>
-                      <div className="stat-num">200</div>
-                      <div className="stat-lbl">Terverifikasi</div>
+                      <div className="stat-top">
+                        <div className="si" style={{ background: 'var(--gold)', color: 'var(--forest)' }}>
+                          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '18px', height: '18px' }}>
+                            <path d="m21.82 15.42l-2.5 4.33c-.49.86-1.4 1.31-2.32 1.25h-2v2l-2.5-4.5L15 14v2h2.82l-2.22-3.85l4.33-2.5l1.8 3.12c.52.77.59 1.8.09 2.65M9.21 3.06h5c.98 0 1.83.57 2.24 1.39l1 1.74l1.73-1l-2.64 4.41l-5.15.09l1.73-1l-1.41-2.45l-2.21 3.85l-4.34-2.5l1.8-3.12c.41-.83 1.26-1.41 2.25-1.41m-4.16 16.7l-2.5-4.33c-.49-.85-.42-1.87.09-2.64l1-1.73l-1.73-1l5.14.08l2.65 4.42l-1.73-1L6.56 16H11v5H7.4a2.51 2.51 0 0 1-2.35-1.24" />
+                          </svg>
+                        </div>
+                        <span className="trend t-up">380 kg</span>
+                      </div>
+                      <div className="stat-num">Plastik</div>
+                      <div className="stat-lbl">Kategori Sampah Terbanyak</div>
                     </div>
+
+                    {/* KPI 3: Money Icon with Brand Green & Yellow Background */}
                     <div className="stat">
-                      <div className="stat-top"><div className="si si-a">⏳</div></div>
-                      <div className="stat-num">30</div>
-                      <div className="stat-lbl">Menunggu Proses</div>
+                      <div className="stat-top">
+                        <div className="si" style={{ background: 'var(--gold)', color: 'var(--forest)' }}>
+                          <Banknote size={18} />
+                        </div>
+                      </div>
+                      <div className="stat-num">Rp 523.350</div>
+                      <div className="stat-lbl">Total Nilai</div>
                     </div>
+
+                    {/* KPI 4: Scales Icon with Brand Green & Yellow Background */}
                     <div className="stat">
-                      <div className="stat-top"><div className="si si-gr">⚖</div><span className="trend t-up">↑ 12%</span></div>
+                      <div className="stat-top">
+                        <div className="si" style={{ background: 'var(--gold)', color: 'var(--forest)' }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path fill="currentColor" d="M13 20V8.8c.5-.2 1-.5 1.3-.9l3.5 1.3l-2.9 6.8c-.5 2 1 3 3.5 3s4.1-1 3.5-3l-2.6-6.3l.9.3l.7-1.9L15 6c0-1.2-.7-2.4-2-2.9c-1.2-.5-2.5 0-3.3.9L3.9 2l-.7 1.8l1.6.6L2.1 11c-.5 2 1 3 3.5 3s4.1-1 3.5-3L6.6 5.1L9 6c0 1.2.7 2.4 2 2.9V20H2v2h20v-2zm6.9-4h-3l1.5-3.8zM7.1 11h-3l1.5-3.8zm4-5.3c.2-.5.8-.8 1.3-.6s.8.8.6 1.3s-.8.8-1.3.6s-.8-.8-.6-1.3"/>
+                          </svg>
+                        </div>
+                        <span className="trend t-up">↑ 12%</span>
+                      </div>
                       <div className="stat-num">1.247 kg</div>
                       <div className="stat-lbl">Total Berat</div>
                     </div>
@@ -1114,13 +1212,7 @@ export default function Home() {
 
                   <div className="panel">
                     <div className="panel-head">
-                      <div className="panel-title">Semua Transaksi</div>
-                    </div>
-                    <div className="tabs">
-                      <button className={`tab ${transaksiFilterStatus === 'ALL' ? 'on' : ''}`} onClick={() => setTransaksiFilterStatus('ALL')}>Semua</button>
-                      <button className={`tab ${transaksiFilterStatus === 'VERIFIED' ? 'on' : ''}`} onClick={() => setTransaksiFilterStatus('VERIFIED')}>Terverifikasi</button>
-                      <button className={`tab ${transaksiFilterStatus === 'PROSES' ? 'on' : ''}`} onClick={() => setTransaksiFilterStatus('PROSES')}>Proses</button>
-                      <button className={`tab ${transaksiFilterStatus === 'REJECTED' ? 'on' : ''}`} onClick={() => setTransaksiFilterStatus('REJECTED')}>Ditolak</button>
+                      <div className="panel-title">Daftar Transaksi Setor</div>
                     </div>
 
                     <div className="tw">
@@ -1129,22 +1221,64 @@ export default function Home() {
                           <tr>
                             <th>ID Transaksi</th>
                             <th>Nasabah</th>
-                            <th>Jenis Sampah</th>
+                            <th>ID Nasabah</th>
                             <th>Berat</th>
                             <th>Nilai (Rp)</th>
-                            <th>Poin</th>
-                            <th>Status</th>
+                            <th>Sumber Input</th>
+                            <th>Waktu</th>
                             <th>Tanggal</th>
                             <th>Aksi</th>
                           </tr>
                         </thead>
                         <tbody>
-                          <tr><td><span className="mono" style={{ fontSize: '11px', color: 'var(--faint)' }}>#TRX-2502-238</span></td><td><div className="tdm"><div className="av">SR</div><div><div className="mn">Siti Rahayu</div></div></div></td><td style={{ color: 'var(--muted)' }}>Plastik</td><td><span className="mono tw-c">3,5 kg</span></td><td><span className="mono">Rp 5.250</span></td><td><span className="mono tp-c">350</span></td><td><span className="badge b-g">Terverifikasi</span></td><td><span className="td-d">24 Feb 25</span></td><td><button className="btn btn-sm btn-ghost">Detail</button></td></tr>
-                          <tr><td><span className="mono" style={{ fontSize: '11px', color: 'var(--faint)' }}>#TRX-2502-237</span></td><td><div className="tdm"><div className="av">BW</div><div><div className="mn">Budi Wahyono</div></div></div></td><td style={{ color: 'var(--muted)' }}>Kertas</td><td><span className="mono tw-c">7,2 kg</span></td><td><span className="mono">Rp 7.200</span></td><td><span className="mono tp-c">504</span></td><td><span className="badge b-g">Terverifikasi</span></td><td><span className="td-d">24 Feb 25</span></td><td><button className="btn btn-sm btn-ghost">Detail</button></td></tr>
-                          <tr><td><span className="mono" style={{ fontSize: '11px', color: 'var(--faint)' }}>#TRX-2502-236</span></td><td><div className="tdm"><div className="av">MA</div><div><div className="mn">Murti Astuti</div></div></div></td><td style={{ color: 'var(--muted)' }}>Logam</td><td><span className="mono tw-c">2,0 kg</span></td><td><span className="mono">Rp 6.000</span></td><td><span className="mono tp-c">600</span></td><td><span className="badge b-y">Proses</span></td><td><span className="td-d">24 Feb 25</span></td><td><div className="td-act"><button className="btn btn-sm btn-gold" onClick={() => showToast('Transaksi terverifikasi!')}>✓ Verifikasi</button></div></td></tr>
-                          <tr><td><span className="mono" style={{ fontSize: '11px', color: 'var(--faint)' }}>#TRX-2502-235</span></td><td><div className="tdm"><div className="av">DH</div><div><div className="mn">Dewi Hapsari</div></div></div></td><td style={{ color: 'var(--muted)' }}>Kaca</td><td><span className="mono tw-c">5,5 kg</span></td><td><span className="mono">Rp 2.750</span></td><td><span className="mono tp-c">275</span></td><td><span className="badge b-g">Terverifikasi</span></td><td><span className="td-d">23 Feb 25</span></td><td><button className="btn btn-sm btn-ghost">Detail</button></td></tr>
-                          <tr><td><span className="mono" style={{ fontSize: '11px', color: 'var(--faint)' }}>#TRX-2502-234</span></td><td><div className="tdm"><div className="av">RS</div><div><div className="mn">Rudi Santoso</div></div></div></td><td style={{ color: 'var(--muted)' }}>Elektronik</td><td><span className="mono tw-c">1,8 kg</span></td><td><span className="mono">Rp 7.200</span></td><td><span className="mono tp-c">720</span></td><td><span className="badge b-y">Proses</span></td><td><span className="td-d">23 Feb 25</span></td><td><div className="td-act"><button className="btn btn-sm btn-gold" onClick={() => showToast('Transaksi terverifikasi!')}>✓ Verifikasi</button></div></td></tr>
-                          <tr><td><span className="mono" style={{ fontSize: '11px', color: 'var(--faint)' }}>#TRX-2502-233</span></td><td><div className="tdm"><div className="av">PN</div><div><div className="mn">Putri Ningrum</div></div></div></td><td style={{ color: 'var(--muted)' }}>Plastik</td><td><span className="mono tw-c">4,1 kg</span></td><td><span className="mono">Rp 6.150</span></td><td><span className="mono tp-c">410</span></td><td><span className="badge b-r">Ditolak</span></td><td><span className="td-d">22 Feb 25</span></td><td><button className="btn btn-sm btn-ghost">Detail</button></td></tr>
+                          {SAMPLE_TRANSACTIONS.map((tx) => (
+                            <tr key={tx.id}>
+                              <td><span className="mono" style={{ fontSize: '11px', color: 'var(--faint)' }}>#{tx.id}</span></td>
+                              <td>
+                                <div className="tdm">
+                                  <div className="av">{getInitials(tx.customer_name)}</div>
+                                  <div>
+                                    <div className="mn">{tx.customer_name}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td><span className="td-d">{formatNasabahId(tx.customer_id, tx.pos_id)}</span></td>
+                              <td><span className="mono tw-c">{tx.weight}</span></td>
+                              <td><span className="mono tp-c">{tx.price}</span></td>
+                              <td>
+                                <span className={`badge ${tx.source === 'Excel' ? 'b-g' : 'b-y'}`}>
+                                  {tx.source}
+                                </span>
+                              </td>
+                              <td><span className="td-d">{tx.time}</span></td>
+                              <td><span className="td-d">{tx.date}</span></td>
+                              <td>
+                                <div className="td-act">
+                                  <button 
+                                    className="btn btn-sm btn-ghost" 
+                                    onClick={() => {
+                                      const n = availableNasabahs.find(item => item.name === tx.customer_name || item.customer_id === tx.customer_id) || {
+                                        name: tx.customer_name,
+                                        customer_id: tx.customer_id || 'WW-BA-0041',
+                                        pos_id: tx.pos_id || 'BA'
+                                      };
+                                      setSelectedNasabah(n);
+                                      setNasabahSearchText(n.name);
+                                      setTanggalSetor(getCurrentDateTimeLocal());
+                                      setWeighItems([
+                                        { kategori: 'Plastik', jenis: 'PET Campur', berat: '2.5', pengepul: 'Bali Wastu Lestari' },
+                                        { kategori: 'Minyak', jenis: 'Minyak Jelantah', berat: '3.2', pengepul: 'Metro Oil' }
+                                      ]);
+                                      setModalType('EDIT_SETORAN');
+                                      setIsModalOpen(true);
+                                    }}
+                                  >
+                                    Edit
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
@@ -1710,6 +1844,7 @@ export default function Home() {
               <div>
                 <div className="mt">
                   {modalType === 'SETORAN' && 'Setoran Baru'}
+                  {modalType === 'EDIT_SETORAN' && 'Edit Setoran'}
                   {modalType === 'NASABAH' && 'Nasabah Baru'}
                   {modalType === 'EDIT_NASABAH' && 'Edit Nasabah'}
                   {modalType === 'HARGA' && 'Update Harga Sampah'}
@@ -1717,6 +1852,7 @@ export default function Home() {
                 </div>
                 <div className="msub">
                   {modalType === 'SETORAN' && 'Isi data setoran sampah nasabah'}
+                  {modalType === 'EDIT_SETORAN' && 'Ubah data setoran sampah nasabah'}
                   {modalType === 'NASABAH' && 'Isi data diri nasabah'}
                   {modalType === 'EDIT_NASABAH' && 'Ubah data diri nasabah'}
                   {modalType === 'HARGA' && 'Ubah daftar harga beli per kg'}
@@ -1727,7 +1863,7 @@ export default function Home() {
             </div>
 
             <div className="mb">
-              {modalType === 'SETORAN' && (
+              {(modalType === 'SETORAN' || modalType === 'EDIT_SETORAN') && (
                 <>
                   {/* Row 1: Kode Nasabah & Tanggal Setor */}
                   <div className="fr">
@@ -2067,7 +2203,7 @@ export default function Home() {
             </div>
 
             <div className="mf" style={{ justifyContent: 'flex-end' }}>
-              {modalType === 'SETORAN' && <button className="btn btn-gold" onClick={handleDepositSubmit}>Simpan</button>}
+              {(modalType === 'SETORAN' || modalType === 'EDIT_SETORAN') && <button className="btn btn-gold" onClick={handleDepositSubmit}>Simpan</button>}
               {modalType === 'NASABAH' && <button className="btn btn-gold" onClick={handleRegisterNasabah}>Simpan</button>}
               {modalType === 'EDIT_NASABAH' && <button className="btn btn-gold" onClick={handleUpdateNasabah}>Simpan</button>}
               {modalType === 'PENARIKAN' && <button className="btn btn-gold" onClick={handleWithdrawConfirm}>Simpan</button>}
