@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Building2, Users, Scale, CreditCard, RefreshCw, Plus,
-  Trash2, Search, ArrowRight, ShieldAlert, Award, FileText, CheckCircle, Upload,
+  Trash2, Search, ArrowRight, ShieldAlert, Award, FileText, CheckCircle, CheckCircle2, Clock, Upload,
   Layers, LogOut, Tag, UserPlus, X, Calendar, Download, Recycle, Banknote, Wallet
 } from 'lucide-react';
 
@@ -40,6 +40,20 @@ const SAMPLE_TRANSACTIONS = [
   { id: 'TX-20250224-004', customer_name: 'Dewi Hapsari', customer_id: 'WW-BA-0013', pos_id: 'BA', weight: '5.5 kg', price: 'Rp 8.250', source: 'Excel', time: '09.30 WITA', date: '23 Feb 2025' },
   { id: 'TX-20250224-005', customer_name: 'Rudi Santoso', customer_id: 'WW-BA-0109', pos_id: 'BA', weight: '1.8 kg', price: 'Rp 7.200', source: 'Manual', time: '08.15 WITA', date: '23 Feb 2025' },
   { id: 'TX-20250224-006', customer_name: 'Hani Lestari', customer_id: 'WW-BA-0142', pos_id: 'BA', weight: '4.1 kg', price: 'Rp 6.150', source: 'Manual', time: '14.05 WITA', date: '22 Feb 2025' }
+];
+
+const SAMPLE_ACCOUNT_MUTATIONS = [
+  { id: 'MUT-001', type: 'INCOME', desc: 'Setoran Sampah (Plastik & Minyak)', date: '24 Feb 2025, 13.25 WITA', amount: 35500, balance_after: 87500 },
+  { id: 'MUT-002', type: 'EXPENSE', desc: 'Penarikan Tunai Saldo Tabungan', date: '18 Feb 2025, 10.15 WITA', amount: 50000, balance_after: 52000 },
+  { id: 'MUT-003', type: 'INCOME', desc: 'Setoran Sampah (Kertas & Logam)', date: '10 Feb 2025, 14.40 WITA', amount: 62000, balance_after: 102000 },
+  { id: 'MUT-004', type: 'INCOME', desc: 'Setoran Sampah (Kaca & Plastik)', date: '01 Feb 2025, 09.20 WITA', amount: 40000, balance_after: 40000 }
+];
+
+const SAMPLE_WITHDRAWALS = [
+  { id: 'WD-20250224-001', customer_name: 'Budi Wahyono', customer_id: 'WW-BA-0027', pos_id: 'BA', amount: 50000, remaining_balance: 74000, method: 'Tunai', status: 'COMPLETED', date: '24 Feb 2025, 11:20 WITA', proof_file: 'struk_pencairan_001.png' },
+  { id: 'WD-20250224-002', customer_name: 'Siti Rahayu', customer_id: 'WW-BA-0041', pos_id: 'BA', amount: 30000, remaining_balance: 57500, method: 'Transfer (BCA)', status: 'PENDING', date: '24 Feb 2025, 10:15 WITA', proof_file: null },
+  { id: 'WD-20250223-003', customer_name: 'Murti Astuti', customer_id: 'WW-BA-0088', pos_id: 'BA', amount: 20000, remaining_balance: 22000, method: 'Tunai', status: 'PENDING', date: '23 Feb 2025, 14:05 WITA', proof_file: null },
+  { id: 'WD-20250222-004', customer_name: 'Dewi Hapsari', customer_id: 'WW-BA-0013', pos_id: 'BA', amount: 100000, remaining_balance: 115000, method: 'Transfer (Mandiri)', status: 'COMPLETED', date: '22 Feb 2025, 09:30 WITA', proof_file: 'struk_pencairan_004.png' }
 ];
 
 const getCurrentDateTimeLocal = () => {
@@ -103,6 +117,9 @@ export default function Home() {
   const [customerSearch, setCustomerSearch] = useState('');
   const [nasabahFilterStatus, setNasabahFilterStatus] = useState('ALL');
   const [transaksiFilterStatus, setTransaksiFilterStatus] = useState('ALL');
+  const [penarikanFilterStatus, setPenarikanFilterStatus] = useState('ALL');
+  const [selectedWithdrawal, setSelectedWithdrawal] = useState(null);
+  const [selectedWithdrawalProof, setSelectedWithdrawalProof] = useState(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -110,10 +127,12 @@ export default function Home() {
   const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState('Februari');
   const [selectedYear, setSelectedYear] = useState('2025');
+  const [tabunganSearchText, setTabunganSearchText] = useState('');
 
   // Forms state
   const [newPosForm, setNewPosForm] = useState({ pos_id: '', pos_name: '', address: '' });
   const [editingNasabah, setEditingNasabah] = useState(null);
+  const [selectedNasabahHistory, setSelectedNasabahHistory] = useState(null);
   const [nasabahNewForm, setNasabahNewForm] = useState({ name: '', address: '' });
   const [nasabahEditForm, setNasabahEditForm] = useState({ name: '', address: '', status: 'ACTIVE' });
   const [tanggalNasabah, setTanggalNasabah] = useState(getCurrentDateTimeLocal());
@@ -327,6 +346,25 @@ export default function Home() {
   const nasabahTotalCount = availableNasabahs.length;
   const nasabahActiveCount = availableNasabahs.filter(n => n.status !== 'INACTIVE').length;
   const nasabahInactiveCount = availableNasabahs.filter(n => n.status === 'INACTIVE').length;
+
+  const filteredTabunganData = availableNasabahs.filter(n => {
+    const query = (tabunganSearchText || '').trim().toLowerCase();
+    if (!query) return true;
+    const name = (n.name || '').toLowerCase();
+    const id = (n.customer_id || '').toLowerCase();
+    const formattedId = formatNasabahId(n.customer_id, n.pos_id).toLowerCase();
+    return (
+      name.includes(query) ||
+      id.includes(query) ||
+      formattedId.includes(query)
+    );
+  });
+
+  const filteredPenarikanData = SAMPLE_WITHDRAWALS.filter(wd => {
+    if (penarikanFilterStatus === 'PENDING' && wd.status !== 'PENDING') return false;
+    if (penarikanFilterStatus === 'COMPLETED' && wd.status !== 'COMPLETED') return false;
+    return true;
+  });
 
   const openNewDepositModal = () => {
     setSelectedNasabah(null);
@@ -1366,29 +1404,74 @@ export default function Home() {
                   <div className="ph2">
                     <div className="ph2-l">
                       <div className="pt">Tabungan <span>Nasabah</span></div>
-                      <div className="ps">Saldo aktif 142 nasabah</div>
+                      <div className="ps">Saldo aktif {availableNasabahs.length} nasabah</div>
+                    </div>
+                    <div className="ph2-r">
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                        <Search size={14} style={{ position: 'absolute', left: '12px', color: 'var(--faint)' }} />
+                        <input
+                          className="fi"
+                          type="text"
+                          placeholder="Cari nasabah..."
+                          value={tabunganSearchText}
+                          onChange={(e) => setTabunganSearchText(e.target.value)}
+                          style={{ paddingLeft: '34px', width: '220px', height: '36px' }}
+                        />
+                      </div>
                     </div>
                   </div>
 
                   <div className="stats">
+                    {/* KPI 1: Tabungan piggy bank/wallet icon matching sidebar Tabungan page icon */}
                     <div className="stat hl">
-                      <div className="stat-top"><div className="si si-w">💰</div><span className="trend t-uw">↑ 14%</span></div>
-                      <div className="stat-num">Rp 4,8jt</div>
+                      <div className="stat-top">
+                        <div className="si" style={{ background: 'var(--gold-s)', color: 'var(--gold)' }}>
+                          <svg viewBox="0 0 48 48" fill="currentColor" style={{ width: '18px', height: '18px' }}>
+                            <g fill="currentColor">
+                              <path fillRule="evenodd" d="M14.953 16.63c4.816 1.86 10.603 1.86 15.418-.002a29.3 29.3 0 0 1 5.153 7.487c.872.134 1.707.38 2.49.723c-1.427-3.644-3.841-7.186-6.436-9.838l3.694-5.4a16 16 0 0 0-1.886-1.054C30.946 7.361 27.027 6 22.711 6c-4.406 0-8.431 1.42-10.886 2.621q-.366.18-.684.35c-.427.23-.787.444-1.069.629L13.74 15c-8.59 9.038-14.99 26.997 8.971 26.997a37 37 0 0 0 4.906-.3a10 10 0 0 1-1.713-1.826q-1.472.124-3.193.126c-5.785 0-9.413-1.091-11.58-2.591c-2.075-1.437-2.986-3.37-3.115-5.632c-.134-2.35.585-5.093 1.932-7.87c1.285-2.648 3.079-5.197 5.005-7.274m14.251-1.702l2.958-4.323c-2.75.198-6.023.844-9.173 1.756c-2.25.65-4.749.551-7.065.124a25 25 0 0 1-1.737-.386l1.92 2.827c4.116 1.465 8.982 1.465 13.097.002m-15.4-5.012c.8.238 1.635.445 2.483.602c2.15.396 4.307.454 6.146-.079a54 54 0 0 1 6.53-1.471C27.123 8.414 24.972 8 22.71 8c-3.445 0-6.658.961-8.907 1.916" clipRule="evenodd" />
+                              <path fillRule="evenodd" d="M22.67 28c1.021 0 1.953.383 2.66 1.013a10 10 0 0 0-.892 2.051A2 2 0 0 0 22.67 30v4c.517 0 .988-.196 1.343-.518a10 10 0 0 0 .134 2.236A4 4 0 0 1 22.67 36v1h-2v-1a4 4 0 0 1-3.772-2.667a1 1 0 1 1 1.886-.666A2 2 0 0 0 20.67 34v-4a4 4 0 0 1 0-8v-1h2v1a4 4 0 0 1-3.772 2.667a1 1 0 1 1-1.886-.666A2 2 0 0 0 22.67 24zm-2-4a2 2 0 0 0 0 4z" clipRule="evenodd" />
+                              <path d="m35 34.42l1.19-1.067l1.335 1.49L34 38.001l-3.524-3.16l1.335-1.489L33 34.419V30h2z" />
+                              <path fillRule="evenodd" d="M34 42a8 8 0 1 0 0-16a8 8 0 0 0 0 16m0-2a6 6 0 1 0 0-12a6 6 0 0 0 0 12" clipRule="evenodd" />
+                            </g>
+                          </svg>
+                        </div>
+                        <span className="trend t-uw">↑ 14%</span>
+                      </div>
+                      <div className="stat-num">Rp 4.800.000</div>
                       <div className="stat-lbl">Total Tabungan</div>
                     </div>
+
+                    {/* KPI 2: Users Vector Icon */}
                     <div className="stat">
-                      <div className="stat-top"><div className="si si-g">📊</div></div>
-                      <div className="stat-num">Rp 33rb</div>
+                      <div className="stat-top">
+                        <div className="si" style={{ background: 'var(--gold)', color: 'var(--forest)' }}>
+                          <Users size={18} />
+                        </div>
+                      </div>
+                      <div className="stat-num">Rp 33.800</div>
                       <div className="stat-lbl">Rata-rata / Nasabah</div>
                     </div>
+
+                    {/* KPI 3: Award Vector Icon */}
                     <div className="stat">
-                      <div className="stat-top"><div className="si si-a">⭐</div></div>
-                      <div className="stat-num">Rp 215rb</div>
+                      <div className="stat-top">
+                        <div className="si" style={{ background: 'var(--gold)', color: 'var(--forest)' }}>
+                          <Award size={18} />
+                        </div>
+                      </div>
+                      <div className="stat-num">Rp 215.000</div>
                       <div className="stat-lbl">Tabungan Tertinggi</div>
                     </div>
+
+                    {/* KPI 4: Wallet Vector Icon */}
                     <div className="stat">
-                      <div className="stat-top"><div className="si si-gr">📅</div><span className="trend t-up">bulan ini</span></div>
-                      <div className="stat-num">Rp 620rb</div>
+                      <div className="stat-top">
+                        <div className="si" style={{ background: 'var(--gold)', color: 'var(--forest)' }}>
+                          <Wallet size={18} />
+                        </div>
+                        <span className="trend t-up">bulan ini</span>
+                      </div>
+                      <div className="stat-num">Rp 620.000</div>
                       <div className="stat-lbl">Total Masuk</div>
                     </div>
                   </div>
@@ -1403,21 +1486,54 @@ export default function Home() {
                         <thead>
                           <tr>
                             <th>Nasabah</th>
-                            <th>No. Rekening</th>
+                            <th>ID Nasabah</th>
                             <th>Saldo</th>
                             <th>Masuk Bulan Ini</th>
                             <th>Keluar Bulan Ini</th>
-                            <th>Tgl Update</th>
+                            <th>TGL Update</th>
                             <th>Aksi</th>
                           </tr>
                         </thead>
                         <tbody>
-                          <tr><td><div className="tdm"><div className="av">DH</div><div><div className="mn">Dewi Hapsari</div><div className="mid">BSW-0013</div></div></div></td><td><span className="mono" style={{ fontSize: '11px' }}>TAB-0013-25</span></td><td><span className="mono tp-c">Rp 215.000</span></td><td><span className="mono tw-c">+ Rp 52.750</span></td><td><span className="mono" style={{ color: 'var(--red)' }}>- Rp 0</span></td><td><span className="td-d">24 Feb 25</span></td><td><button className="btn btn-sm btn-ghost">Riwayat</button></td></tr>
-                          <tr><td><div className="tdm"><div className="av">BW</div><div><div className="mn">Budi Wahyono</div><div className="mid">BSW-0027</div></div></div></td><td><span className="mono" style={{ fontSize: '11px' }}>TAB-0027-25</span></td><td><span className="mono tp-c">Rp 124.000</span></td><td><span className="mono tw-c">+ Rp 74.200</span></td><td><span className="mono" style={{ color: 'var(--red)' }}>- Rp 50.000</span></td><td><span className="td-d">24 Feb 25</span></td><td><button className="btn btn-sm btn-ghost">Riwayat</button></td></tr>
-                          <tr><td><div className="tdm"><div className="av">SR</div><div><div className="mn">Siti Rahayu</div><div className="mid">BSW-0041</div></div></div></td><td><span className="mono" style={{ fontSize: '11px' }}>TAB-0041-25</span></td><td><span className="mono tp-c">Rp 87.500</span></td><td><span className="mono tw-c">+ Rp 35.500</span></td><td><span className="mono" style={{ color: 'var(--red)' }}>- Rp 0</span></td><td><span className="td-d">24 Feb 25</span></td><td><button className="btn btn-sm btn-ghost">Riwayat</button></td></tr>
-                          <tr><td><div className="tdm"><div className="av">PN</div><div><div className="mn">Putri Ningrum</div><div className="mid">BSW-0076</div></div></div></td><td><span className="mono" style={{ fontSize: '11px' }}>TAB-0076-25</span></td><td><span className="mono" style={{ color: 'var(--muted)' }}>Rp 0</span></td><td><span className="mono" style={{ color: 'var(--muted)' }}>-</span></td><td><span className="mono" style={{ color: 'var(--muted)' }}>-</span></td><td><span className="td-d">22 Feb 25</span></td><td><button className="btn btn-sm btn-ghost">Riwayat</button></td></tr>
-                          <tr><td><div className="tdm"><div className="av">MA</div><div><div className="mn">Murti Astuti</div><div className="mid">BSW-0088</div></div></div></td><td><span className="mono" style={{ fontSize: '11px' }}>TAB-0088-25</span></td><td><span className="mono tp-c">Rp 42.000</span></td><td><span className="mono tw-c">+ Rp 42.000</span></td><td><span className="mono" style={{ color: 'var(--red)' }}>- Rp 0</span></td><td><span className="td-d">24 Feb 25</span></td><td><button className="btn btn-sm btn-ghost">Riwayat</button></td></tr>
-                          <tr><td><div className="tdm"><div className="av">RS</div><div><div className="mn">Rudi Santoso</div><div className="mid">BSW-0109</div></div></div></td><td><span className="mono" style={{ fontSize: '11px' }}>TAB-0109-25</span></td><td><span className="mono tp-c">Rp 57.000</span></td><td><span className="mono tw-c">+ Rp 57.000</span></td><td><span className="mono" style={{ color: 'var(--red)' }}>- Rp 0</span></td><td><span className="td-d">23 Feb 25</span></td><td><button className="btn btn-sm btn-ghost">Riwayat</button></td></tr>
+                          {filteredTabunganData.length > 0 ? (
+                            filteredTabunganData.map(n => (
+                              <tr key={n.customer_id}>
+                                <td>
+                                  <div className="tdm">
+                                    <div className="av">{getInitials(n.name)}</div>
+                                    <div>
+                                      <div className="mn">{n.name}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td><span className="td-d">{formatNasabahId(n.customer_id, n.pos_id || activePosId)}</span></td>
+                                <td><span className="mono tp-c">Rp. {parseFloat(n.balance || 0).toLocaleString('id-ID')}</span></td>
+                                <td><span className="mono tw-c">+ Rp 35.500</span></td>
+                                <td><span className="mono" style={{ color: 'var(--red)', fontWeight: 600 }}>- Rp 0</span></td>
+                                <td><span className="td-d">{formatDate(n.created_at || '2025-02-24')}</span></td>
+                                <td>
+                                  <div className="td-act">
+                                    <button 
+                                      className="btn btn-sm btn-ghost" 
+                                      onClick={() => {
+                                        setSelectedNasabahHistory(n);
+                                        setModalType('RIWAYAT_TABUNGAN');
+                                        setIsModalOpen(true);
+                                      }}
+                                    >
+                                      Riwayat
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan="7" style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--muted)', fontSize: '12.5px' }}>
+                                Tidak ada data tabungan yang sesuai dengan pencarian.
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -1433,64 +1549,180 @@ export default function Home() {
                       <div className="pt">Penarikan <span>Saldo</span></div>
                       <div className="ps">Kelola permintaan penarikan nasabah</div>
                     </div>
+                    <div className="ph2-r">
+                      <button 
+                        className="btn btn-gold" 
+                        style={{ height: '36px' }}
+                        onClick={() => {
+                          setWithdrawAmount('');
+                          setModalType('PENARIKAN');
+                          setIsModalOpen(true);
+                        }}
+                      >
+                        <Plus size={16} /> + Penarikan Saldo
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="g2" style={{ gridTemplateColumns: '1fr 280px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                      <div className="stats" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-                        <div className="stat hl"><div className="stat-top"><div className="si si-w">↑</div><span className="trend t-uw">bulan ini</span></div><div className="stat-num">Rp 620rb</div><div className="stat-lbl">Total Dicairkan</div></div>
-                        <div className="stat"><div className="stat-top"><div className="si si-a">⏳</div></div><div className="stat-num">5</div><div className="stat-lbl">Menunggu Proses</div></div>
-                        <div className="stat"><div className="stat-top"><div className="si si-g">✅</div></div><div className="stat-num">28</div><div className="stat-lbl">Selesai Bulan Ini</div></div>
+                  {/* 4 Standardized Equal-Sized KPI Cards */}
+                  <div className="stats">
+                    {/* KPI 1: Penarikan Page Icon in Yellow Brand Color */}
+                    <div className="stat hl">
+                      <div className="stat-top">
+                        <div className="si" style={{ background: 'var(--gold-s)', color: 'var(--gold)' }}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" style={{ width: '18px', height: '18px' }}>
+                            <path d="m18.935 13.945l-.67-3.648c-.29-1.576-.435-2.364-1.008-2.83S15.86 7 14.213 7H9.787c-1.647 0-2.47 0-3.044.467c-.573.466-.718 1.254-1.008 2.83l-.67 3.648c-.6 3.271-.901 4.907.024 5.98C6.014 21 7.724 21 11.142 21h1.716c3.418 0 5.128 0 6.053-1.074s.625-2.71.024-5.98Z" />
+                            <path strokeLinejoin="round" d="M12 10.5V17m-2.5-2l2.5 2.5l2.5-2.5" />
+                          </svg>
+                        </div>
+                        <span className="trend t-uw">bulan ini</span>
                       </div>
+                      <div className="stat-num">Rp 620.000</div>
+                      <div className="stat-lbl">Total Penarikan</div>
+                    </div>
 
-                      <div className="panel">
-                        <div className="panel-head"><div className="panel-title">Permintaan Penarikan</div></div>
-                        <div className="tabs">
-                          <button className="tab on">Semua</button>
-                          <button className="tab">Menunggu (5)</button>
-                          <button className="tab">Selesai</button>
+                    {/* KPI 2: Banknote Icon */}
+                    <div className="stat">
+                      <div className="stat-top">
+                        <div className="si" style={{ background: 'var(--gold)', color: 'var(--forest)' }}>
+                          <Banknote size={18} />
                         </div>
-                        <div className="tw">
-                          <table>
-                            <thead>
-                              <tr>
-                                <th>Nasabah</th>
-                                <th>Nominal</th>
-                                <th>Saldo Sisa</th>
-                                <th>Metode</th>
-                                <th>Status</th>
-                                <th>Tgl Req</th>
-                                <th>Aksi</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <tr><td><div className="tdm"><div className="av">BW</div><div><div className="mn">Budi Wahyono</div></div></div></td><td><span className="mono" style={{ fontWeight: 700, color: 'var(--ink)' }}>Rp 50.000</span></td><td><span className="mono tw-c">Rp 74.000</span></td><td style={{ fontSize: '12px', color: 'var(--muted)' }}>Tunai</td><td><span className="badge b-g">Selesai</span></td><td><span className="td-d">24 Feb</span></td><td><button className="btn btn-sm btn-ghost">Cetak</button></td></tr>
-                              <tr><td><div className="tdm"><div className="av">SR</div><div><div className="mn">Siti Rahayu</div></div></div></td><td><span className="mono" style={{ fontWeight: 700, color: 'var(--ink)' }}>Rp 30.000</span></td><td><span className="mono tw-c">Rp 57.500</span></td><td style={{ fontSize: '12px', color: 'var(--muted)' }}>Transfer</td><td><span className="badge b-y">Menunggu</span></td><td><span className="td-d">24 Feb</span></td><td><div className="td-act"><button className="btn btn-sm btn-gold" onClick={() => showToast('Penarikan diproses!')}>✓ Proses</button></div></td></tr>
-                              <tr><td><div className="tdm"><div className="av">MA</div><div><div className="mn">Murti Astuti</div></div></div></td><td><span className="mono" style={{ fontWeight: 700, color: 'var(--ink)' }}>Rp 20.000</span></td><td><span className="mono tw-c">Rp 22.000</span></td><td style={{ fontSize: '12px', color: 'var(--muted)' }}>Tunai</td><td><span className="badge b-y">Menunggu</span></td><td><span className="td-d">23 Feb</span></td><td><div className="td-act"><button className="btn btn-sm btn-gold" onClick={() => showToast('Penarikan diproses!')}>✓ Proses</button></div></td></tr>
-                            </tbody>
-                          </table>
+                      </div>
+                      <div className="stat-num">Rp 1.450.000</div>
+                      <div className="stat-lbl">Total Pencairan</div>
+                    </div>
+
+                    {/* KPI 3: Clock Icon */}
+                    <div className="stat">
+                      <div className="stat-top">
+                        <div className="si" style={{ background: 'var(--gold)', color: 'var(--forest)' }}>
+                          <Clock size={18} />
                         </div>
+                        <span className="trend t-uw" style={{ background: 'var(--amb-s)', color: 'var(--amb)' }}>
+                          {SAMPLE_WITHDRAWALS.filter(w => w.status === 'PENDING').length} request
+                        </span>
+                      </div>
+                      <div className="stat-num">{SAMPLE_WITHDRAWALS.filter(w => w.status === 'PENDING').length}</div>
+                      <div className="stat-lbl">Menunggu Proses</div>
+                    </div>
+
+                    {/* KPI 4: CheckCircle2 Icon matching exact size of rest */}
+                    <div className="stat">
+                      <div className="stat-top">
+                        <div className="si" style={{ background: 'var(--gold)', color: 'var(--forest)' }}>
+                          <CheckCircle2 size={18} />
+                        </div>
+                      </div>
+                      <div className="stat-num">{SAMPLE_WITHDRAWALS.filter(w => w.status === 'COMPLETED').length}</div>
+                      <div className="stat-lbl">Selesai Bulan Ini</div>
+                    </div>
+                  </div>
+
+                  <div className="panel">
+                    <div className="panel-head">
+                      <div>
+                        <div className="panel-title">Permintaan Penarikan</div>
+                        <div className="panel-sub">Daftar pengajuan pencairan saldo nasabah</div>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      <div className="balance-card">
-                        <div className="balance-label">Total Saldo Nasabah</div>
-                        <div className="balance-amount">Rp 4.837.500</div>
-                        <div className="balance-sub">142 rekening aktif · Per 24 Feb 2025</div>
-                      </div>
+                    {/* Working Category/Status Filter Tabs */}
+                    <div className="tabs">
+                      <button 
+                        className={`tab ${penarikanFilterStatus === 'ALL' ? 'on' : ''}`}
+                        onClick={() => setPenarikanFilterStatus('ALL')}
+                      >
+                        Semua ({SAMPLE_WITHDRAWALS.length})
+                      </button>
+                      <button 
+                        className={`tab ${penarikanFilterStatus === 'PENDING' ? 'on' : ''}`}
+                        onClick={() => setPenarikanFilterStatus('PENDING')}
+                      >
+                        Menunggu ({SAMPLE_WITHDRAWALS.filter(w => w.status === 'PENDING').length})
+                      </button>
+                      <button 
+                        className={`tab ${penarikanFilterStatus === 'COMPLETED' ? 'on' : ''}`}
+                        onClick={() => setPenarikanFilterStatus('COMPLETED')}
+                      >
+                        Selesai ({SAMPLE_WITHDRAWALS.filter(w => w.status === 'COMPLETED').length})
+                      </button>
+                    </div>
 
-                      <div className="panel">
-                        <div className="panel-head"><div className="panel-title">Syarat Penarikan</div></div>
-                        <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          <div style={{ fontSize: '12.5px', color: 'var(--muted)', lineHeight: '1.6' }}>
-                            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}><span style={{ color: 'var(--gold)', fontWeight: 700 }}>•</span><span>Minimum penarikan <strong style={{ color: 'var(--ink)' }}>Rp 10.000</strong></span></div>
-                            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}><span style={{ color: 'var(--gold)', fontWeight: 700 }}>•</span><span>Penarikan hanya pada hari <strong style={{ color: 'var(--ink)' }}>Sabtu</strong></span></div>
-                            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}><span style={{ color: 'var(--gold)', fontWeight: 700 }}>•</span><span>Bawa <strong style={{ color: 'var(--ink)' }}>buku tabungan</strong> & KTP</span></div>
-                            <div style={{ display: 'flex', gap: '8px' }}><span style={{ color: 'var(--gold)', fontWeight: 700 }}>•</span><span>Transfer via BCA/BNI/Mandiri</span></div>
-                          </div>
-                        </div>
-                      </div>
+                    <div className="tw">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Nasabah</th>
+                            <th>ID Nasabah</th>
+                            <th>Nominal</th>
+                            <th>Saldo Sisa</th>
+                            <th>Metode</th>
+                            <th>Status</th>
+                            <th>Tgl Req</th>
+                            <th>Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredPenarikanData.length > 0 ? (
+                            filteredPenarikanData.map(wd => (
+                              <tr key={wd.id}>
+                                <td>
+                                  <div className="tdm">
+                                    <div className="av">{getInitials(wd.customer_name)}</div>
+                                    <div>
+                                      <div className="mn">{wd.customer_name}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td><span className="td-d">{formatNasabahId(wd.customer_id, wd.pos_id || activePosId)}</span></td>
+                                <td><span className="mono" style={{ fontWeight: 700, color: 'var(--ink)' }}>Rp {wd.amount.toLocaleString('id-ID')}</span></td>
+                                <td><span className="mono tw-c">Rp {wd.remaining_balance.toLocaleString('id-ID')}</span></td>
+                                <td style={{ fontSize: '12px', color: 'var(--muted)' }}>{wd.method}</td>
+                                <td>
+                                  <span className={`badge ${wd.status === 'COMPLETED' ? 'b-g' : 'b-y'}`}>
+                                    {wd.status === 'COMPLETED' ? 'Selesai' : 'Menunggu'}
+                                  </span>
+                                </td>
+                                <td><span className="td-d">{wd.date}</span></td>
+                                <td>
+                                  <div className="td-act">
+                                    {wd.status === 'COMPLETED' ? (
+                                      <button 
+                                        className="btn btn-sm btn-ghost" 
+                                        onClick={() => {
+                                          setSelectedWithdrawal(wd);
+                                          setModalType('DETAIL_PENARIKAN');
+                                          setIsModalOpen(true);
+                                        }}
+                                      >
+                                        Detail
+                                      </button>
+                                    ) : (
+                                      <button 
+                                        className="btn btn-sm btn-gold" 
+                                        onClick={() => {
+                                          setSelectedWithdrawal(wd);
+                                          setSelectedWithdrawalProof(null);
+                                          setModalType('PROSES_PENARIKAN');
+                                          setIsModalOpen(true);
+                                        }}
+                                      >
+                                        ✓ Proses
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan="8" style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--muted)', fontSize: '12.5px' }}>
+                                Tidak ada data permintaan penarikan.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </>
@@ -1847,6 +2079,9 @@ export default function Home() {
                   {modalType === 'EDIT_SETORAN' && 'Edit Setoran'}
                   {modalType === 'NASABAH' && 'Nasabah Baru'}
                   {modalType === 'EDIT_NASABAH' && 'Edit Nasabah'}
+                  {modalType === 'RIWAYAT_TABUNGAN' && 'Riwayat Tabungan'}
+                  {modalType === 'DETAIL_PENARIKAN' && 'Detail Penarikan Saldo'}
+                  {modalType === 'PROSES_PENARIKAN' && 'Proses Penarikan Saldo'}
                   {modalType === 'HARGA' && 'Update Harga Sampah'}
                   {modalType === 'PENARIKAN' && 'Penarikan Saldo Nasabah'}
                 </div>
@@ -1855,6 +2090,9 @@ export default function Home() {
                   {modalType === 'EDIT_SETORAN' && 'Ubah data setoran sampah nasabah'}
                   {modalType === 'NASABAH' && 'Isi data diri nasabah'}
                   {modalType === 'EDIT_NASABAH' && 'Ubah data diri nasabah'}
+                  {modalType === 'RIWAYAT_TABUNGAN' && (selectedNasabahHistory ? `Mutasi rekening ${selectedNasabahHistory.name}` : 'Detail mutasi saldo nasabah')}
+                  {modalType === 'DETAIL_PENARIKAN' && 'Informasi lengkap transaksi pencairan saldo nasabah'}
+                  {modalType === 'PROSES_PENARIKAN' && 'Konfirmasi pencairan saldo dan unggah bukti transaksi'}
                   {modalType === 'HARGA' && 'Ubah daftar harga beli per kg'}
                   {modalType === 'PENARIKAN' && 'Input nominal pencairan saldo'}
                 </div>
@@ -2200,12 +2438,235 @@ export default function Home() {
                   </div>
                 </>
               )}
+
+              {modalType === 'RIWAYAT_TABUNGAN' && (
+                <>
+                  {/* Account Summary Banner */}
+                  <div style={{
+                    background: 'var(--surf2)',
+                    border: '1px solid var(--line)',
+                    borderRadius: '9px',
+                    padding: '14px 16px',
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink)' }}>
+                        {selectedNasabahHistory?.name || 'Siti Rahayu'}
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: '2px' }}>
+                        ID: {formatNasabahId(selectedNasabahHistory?.customer_id || 'WW-BA-0041', selectedNasabahHistory?.pos_id || activePosId)}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '10.5px', color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
+                        Saldo Saat Ini
+                      </div>
+                      <div className="mono tp-c" style={{ fontSize: '16px', fontWeight: 800 }}>
+                        Rp. {parseFloat(selectedNasabahHistory?.balance || 87500).toLocaleString('id-ID')}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mutation History Table */}
+                  <div className="tw" style={{ maxHeight: '320px', overflowY: 'auto' }}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Waktu & Tanggal</th>
+                          <th>Keterangan</th>
+                          <th>Pemasukan / Pengeluaran</th>
+                          <th>Saldo Akhir</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {SAMPLE_ACCOUNT_MUTATIONS.map((mut) => (
+                          <tr key={mut.id}>
+                            <td><span className="td-d">{mut.date}</span></td>
+                            <td style={{ fontSize: '12px', color: 'var(--ink)' }}>{mut.desc}</td>
+                            <td>
+                              {mut.type === 'INCOME' ? (
+                                <span className="mono tw-c" style={{ fontWeight: 700 }}>
+                                  + Rp {mut.amount.toLocaleString('id-ID')}
+                                </span>
+                              ) : (
+                                <span className="mono" style={{ color: 'var(--red)', fontWeight: 700 }}>
+                                  - Rp {mut.amount.toLocaleString('id-ID')}
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              <span className="mono" style={{ fontSize: '11.5px', color: 'var(--ink)' }}>
+                                Rp {mut.balance_after.toLocaleString('id-ID')}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {modalType === 'DETAIL_PENARIKAN' && selectedWithdrawal && (
+                <>
+                  <div style={{
+                    background: 'var(--surf2)',
+                    border: '1px solid var(--line)',
+                    borderRadius: '9px',
+                    padding: '16px',
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--ink)' }}>
+                        {selectedWithdrawal.customer_name}
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: '2px' }}>
+                        ID: {formatNasabahId(selectedWithdrawal.customer_id, selectedWithdrawal.pos_id || activePosId)}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span className="badge b-g">Selesai / Terverifikasi</span>
+                      <div className="mono" style={{ fontSize: '17px', fontWeight: 800, color: 'var(--red)', marginTop: '4px' }}>
+                        - Rp {selectedWithdrawal.amount.toLocaleString('id-ID')}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="fr" style={{ marginBottom: '12px' }}>
+                    <div className="fg">
+                      <label className="fl">ID Transaksi Penarikan</label>
+                      <input className="fi" value={selectedWithdrawal.id} disabled style={{ background: '#f4f6f3', color: '#8a9e8a' }} />
+                    </div>
+                    <div className="fg">
+                      <label className="fl">Waktu Request</label>
+                      <input className="fi" value={selectedWithdrawal.date} disabled style={{ background: '#f4f6f3', color: '#8a9e8a' }} />
+                    </div>
+                  </div>
+
+                  <div className="fr" style={{ marginBottom: '12px' }}>
+                    <div className="fg">
+                      <label className="fl">Metode Pembayaran</label>
+                      <input className="fi" value={selectedWithdrawal.method} disabled style={{ background: '#f4f6f3', color: '#8a9e8a' }} />
+                    </div>
+                    <div className="fg">
+                      <label className="fl">Sisa Saldo Rekening</label>
+                      <input className="fi" value={`Rp ${selectedWithdrawal.remaining_balance.toLocaleString('id-ID')}`} disabled style={{ background: '#f4f6f3', color: '#8a9e8a' }} />
+                    </div>
+                  </div>
+
+                  <div className="fg">
+                    <label className="fl">Bukti Transaksi / Struk</label>
+                    <div style={{
+                      border: '1px solid var(--line)',
+                      borderRadius: '8px',
+                      padding: '14px',
+                      background: 'var(--surf2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px'
+                    }}>
+                      <div style={{ background: 'var(--gold-s)', color: 'var(--gold)', padding: '10px', borderRadius: '8px' }}>
+                        <FileText size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>
+                          {selectedWithdrawal.proof_file || 'struk_pencairan_terverifikasi.pdf'}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
+                          Terlampir & Terverifikasi oleh Admin
+                        </div>
+                      </div>
+                      <button className="btn btn-sm btn-ghost" style={{ marginLeft: 'auto' }} onClick={() => showToast('Mengunduh bukti transaksi...')}>Lihat File</button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {modalType === 'PROSES_PENARIKAN' && selectedWithdrawal && (
+                <>
+                  <div style={{
+                    background: 'var(--surf2)',
+                    border: '1px solid var(--line)',
+                    borderRadius: '9px',
+                    padding: '16px',
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--ink)' }}>
+                        {selectedWithdrawal.customer_name}
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: '2px' }}>
+                        ID: {formatNasabahId(selectedWithdrawal.customer_id, selectedWithdrawal.pos_id || activePosId)} · Metode: {selectedWithdrawal.method}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span className="badge b-y">Menunggu Konfirmasi</span>
+                      <div className="mono" style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)', marginTop: '4px' }}>
+                        Rp {selectedWithdrawal.amount.toLocaleString('id-ID')}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="fg" style={{ marginBottom: '14px' }}>
+                    <label className="fl">Unggah Bukti Transaksi / Transfer (Optional)</label>
+                    <div 
+                      style={{
+                        border: '2px dashed var(--line)',
+                        borderRadius: '9px',
+                        padding: '24px 16px',
+                        textAlign: 'center',
+                        background: selectedWithdrawalProof ? 'var(--gold-xs)' : 'var(--surf2)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }} 
+                      onClick={() => document.getElementById('proof-upload-input').click()}
+                    >
+                      <Upload size={28} style={{ color: selectedWithdrawalProof ? 'var(--gold)' : 'var(--muted)', marginBottom: '8px' }} />
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>
+                        {selectedWithdrawalProof ? selectedWithdrawalProof.name : 'Klik atau seret file bukti transfer di sini'}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--faint)', marginTop: '4px' }}>
+                        Format JPG, PNG, atau PDF (Maks. 5MB)
+                      </div>
+                      <input
+                        id="proof-upload-input"
+                        type="file"
+                        accept="image/*,.pdf"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setSelectedWithdrawalProof(e.target.files[0]);
+                            showToast(`File ${e.target.files[0].name} terpilih ✓`);
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="mf" style={{ justifyContent: 'flex-end' }}>
               {(modalType === 'SETORAN' || modalType === 'EDIT_SETORAN') && <button className="btn btn-gold" onClick={handleDepositSubmit}>Simpan</button>}
               {modalType === 'NASABAH' && <button className="btn btn-gold" onClick={handleRegisterNasabah}>Simpan</button>}
               {modalType === 'EDIT_NASABAH' && <button className="btn btn-gold" onClick={handleUpdateNasabah}>Simpan</button>}
+              {modalType === 'RIWAYAT_TABUNGAN' && <button className="btn btn-ghost" onClick={() => setIsModalOpen(false)}>Tutup</button>}
+              {modalType === 'DETAIL_PENARIKAN' && <button className="btn btn-ghost" onClick={() => setIsModalOpen(false)}>Tutup</button>}
+              {modalType === 'PROSES_PENARIKAN' && (
+                <div style={{ display: 'flex', gap: '8px', width: '100%', justifyContent: 'space-between' }}>
+                  <button className="btn btn-sm" style={{ background: 'var(--red-s)', color: 'var(--red)', border: 'none' }} onClick={() => { showToast('Permintaan penarikan ditolak'); setIsModalOpen(false); }}>Tolak Request</button>
+                  <button className="btn btn-gold" onClick={() => { showToast('Penarikan berhasil disetujui & dicairkan ✓'); setIsModalOpen(false); }}>✓ Setujui & Cairkan</button>
+                </div>
+              )}
               {modalType === 'PENARIKAN' && <button className="btn btn-gold" onClick={handleWithdrawConfirm}>Simpan</button>}
               {modalType === 'HARGA' && <button className="btn btn-gold" onClick={() => { showToast('Harga berhasil diperbarui ✓'); setIsModalOpen(false); }}>Simpan</button>}
             </div>
