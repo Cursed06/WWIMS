@@ -24,13 +24,13 @@ const getPengepulForCategory = (kategori) => {
 };
 
 const SAMPLE_NASABAHS = [
-  { customer_id: 'WW-BA-0041', name: 'Siti Rahayu', pos_id: 'BA' },
-  { customer_id: 'WW-BA-0027', name: 'Budi Wahyono', pos_id: 'BA' },
-  { customer_id: 'WW-BA-0088', name: 'Murti Astuti', pos_id: 'BA' },
-  { customer_id: 'WW-BA-0013', name: 'Dewi Hapsari', pos_id: 'BA' },
-  { customer_id: 'WW-BA-0109', name: 'Rudi Santoso', pos_id: 'BA' },
-  { customer_id: 'WW-BA-0076', name: 'Putri Ningrum', pos_id: 'BA' },
-  { customer_id: 'WW-BA-0142', name: 'Hani Lestari', pos_id: 'BA' }
+  { customer_id: 'WW-BA-0041', name: 'Siti Rahayu', address: 'Jl. Melati No. 12, RT 03', created_at: '2023-01-14', balance: 87500, status: 'ACTIVE', pos_id: 'BA' },
+  { customer_id: 'WW-BA-0027', name: 'Budi Wahyono', address: 'Jl. Mawar No. 5, RT 01', created_at: '2022-11-05', balance: 124000, status: 'ACTIVE', pos_id: 'BA' },
+  { customer_id: 'WW-BA-0088', name: 'Murti Astuti', address: 'Jl. Anggrek No. 8, RT 07', created_at: '2024-03-18', balance: 42000, status: 'ACTIVE', pos_id: 'BA' },
+  { customer_id: 'WW-BA-0013', name: 'Dewi Hapsari', address: 'Jl. Kenanga No. 3, RT 04', created_at: '2022-08-12', balance: 215000, status: 'ACTIVE', pos_id: 'BA' },
+  { customer_id: 'WW-BA-0076', name: 'Putri Ningrum', address: 'Jl. Dahlia No. 19, RT 02', created_at: '2023-06-01', balance: 0, status: 'INACTIVE', pos_id: 'BA' },
+  { customer_id: 'WW-BA-0142', name: 'Hani Lestari', address: 'Jl. Tulip No. 7, RT 05', created_at: '2025-02-24', balance: 0, status: 'ACTIVE', pos_id: 'BA' },
+  { customer_id: 'WW-BA-0109', name: 'Rudi Santoso', address: 'Jl. Flamboyan No. 4, RT 06', created_at: '2023-09-10', balance: 57000, status: 'ACTIVE', pos_id: 'BA' }
 ];
 
 const getCurrentDateTimeLocal = () => {
@@ -102,7 +102,10 @@ export default function Home() {
 
   // Forms state
   const [newPosForm, setNewPosForm] = useState({ pos_id: '', pos_name: '', address: '' });
-  const [newNasabahForm, setNewNasabahForm] = useState({ name: '', address: '', phone: '' });
+  const [editingNasabah, setEditingNasabah] = useState(null);
+  const [nasabahNewForm, setNasabahNewForm] = useState({ name: '', address: '' });
+  const [nasabahEditForm, setNasabahEditForm] = useState({ name: '', address: '', status: 'ACTIVE' });
+  const [tanggalNasabah, setTanggalNasabah] = useState(getCurrentDateTimeLocal());
 
   // Price Update State
   const [editingPrice, setEditingPrice] = useState(null);
@@ -253,24 +256,23 @@ export default function Home() {
 
   const handleRegisterNasabah = async (e) => {
     if (e) e.preventDefault();
-    try {
-      const res = await fetch(`${API_BASE}/nasabah`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newNasabahForm, pos_id: activePosId })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        showToast(`Nasabah '${data.name}' berhasil terdaftar (${data.customer_id})`);
-        setNewNasabahForm({ name: '', address: '', phone: '' });
-        setIsModalOpen(false);
-        refreshData();
-      } else {
-        showAlert(data.error, 'danger');
-      }
-    } catch (err) {
-      showAlert(err.message, 'danger');
+    if (!nasabahNewForm.name) {
+      showAlert('Silakan masukkan nama nasabah terlebih dahulu', 'danger');
+      return;
     }
+    showToast(`Nasabah '${nasabahNewForm.name}' berhasil ditambahkan ✓`);
+    setIsModalOpen(false);
+    setNasabahNewForm({ name: '', address: '' });
+    refreshData();
+  };
+
+  const handleUpdateNasabah = async (e) => {
+    if (e) e.preventDefault();
+    if (!editingNasabah) return;
+    showToast(`Data nasabah '${nasabahEditForm.name}' berhasil diperbarui ✓`);
+    setIsModalOpen(false);
+    setEditingNasabah(null);
+    refreshData();
   };
 
   const availableNasabahs = nasabahs.length > 0 ? nasabahs : SAMPLE_NASABAHS;
@@ -289,6 +291,31 @@ export default function Home() {
       formattedId.startsWith(query)
     );
   });
+
+  // Data Nasabah Page Table Filtering (Search + Status Tabs)
+  const filteredNasabahTableData = availableNasabahs.filter(n => {
+    if (nasabahFilterStatus === 'ACTIVE' && n.status === 'INACTIVE') return false;
+    if (nasabahFilterStatus === 'INACTIVE' && n.status !== 'INACTIVE') return false;
+
+    const query = (customerSearch || '').trim().toLowerCase();
+    if (!query) return true;
+
+    const name = (n.name || '').toLowerCase();
+    const id = (n.customer_id || '').toLowerCase();
+    const formattedId = formatNasabahId(n.customer_id, n.pos_id).toLowerCase();
+    const address = (n.address || '').toLowerCase();
+
+    return (
+      name.includes(query) ||
+      id.includes(query) ||
+      formattedId.includes(query) ||
+      address.includes(query)
+    );
+  });
+
+  const nasabahTotalCount = availableNasabahs.length;
+  const nasabahActiveCount = availableNasabahs.filter(n => n.status !== 'INACTIVE').length;
+  const nasabahInactiveCount = availableNasabahs.filter(n => n.status === 'INACTIVE').length;
 
   const handleDepositSubmit = async (e) => {
     if (e) e.preventDefault();
@@ -893,16 +920,16 @@ export default function Home() {
                   </div>
 
                   <div className="stats">
-                    <div className="stat">
+                    <div className="stat hl">
                       <div className="stat-top">
-                        <div className="si" style={{ background: 'var(--gold)', color: 'var(--forest)' }}>
+                        <div className="si" style={{ background: 'var(--gold-s)', color: 'var(--gold)' }}>
                           <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '18px', height: '18px' }}>
                             <path d="M8 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8m9 0a3 3 0 1 0 0-6a3 3 0 0 0 0 6M4.25 14A2.25 2.25 0 0 0 2 16.25v.25S2 21 8 21s6-4.5 6-4.5v-.25A2.25 2.25 0 0 0 11.75 14zM17 19.5c-1.171 0-2.068-.181-2.755-.458a5.5 5.5 0 0 0 .736-2.207A4 4 0 0 0 15 16.55v-.3a3.24 3.24 0 0 0-.902-2.248L14.2 14h5.6a2.2 2.2 0 0 1 2.2 2.2s0 3.3-5 3.3" />
                           </svg>
                         </div>
-                        <span className="trend t-up">+8</span>
+                        <span className="trend t-uw">+8</span>
                       </div>
-                      <div className="stat-num">{nasabahs.length || 142}</div>
+                      <div className="stat-num">{nasabahTotalCount}</div>
                       <div className="stat-lbl">Total Nasabah</div>
                     </div>
 
@@ -972,29 +999,17 @@ export default function Home() {
                   <div className="panel">
                     <div className="panel-head">
                       <div><div className="panel-title">Daftar Nasabah</div></div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <select 
-                          className="fi" 
-                          style={{ width: 'auto', padding: '5px 10px', fontSize: '12px' }}
-                          value={nasabahFilterStatus}
-                          onChange={(e) => setNasabahFilterStatus(e.target.value)}
-                        >
-                          <option value="ALL">Semua Status</option>
-                          <option value="ACTIVE">Aktif</option>
-                          <option value="INACTIVE">Tidak Aktif</option>
-                        </select>
-                      </div>
                     </div>
 
                     <div className="tabs">
                       <button className={`tab ${nasabahFilterStatus === 'ALL' ? 'on' : ''}`} onClick={() => setNasabahFilterStatus('ALL')}>
-                        Semua ({nasabahs.length || 142})
+                        Semua ({nasabahTotalCount})
                       </button>
                       <button className={`tab ${nasabahFilterStatus === 'ACTIVE' ? 'on' : ''}`} onClick={() => setNasabahFilterStatus('ACTIVE')}>
-                        Aktif (131)
+                        Aktif ({nasabahActiveCount})
                       </button>
                       <button className={`tab ${nasabahFilterStatus === 'INACTIVE' ? 'on' : ''}`} onClick={() => setNasabahFilterStatus('INACTIVE')}>
-                        Tidak Aktif (11)
+                        Tidak Aktif ({nasabahInactiveCount})
                       </button>
                     </div>
 
@@ -1012,8 +1027,8 @@ export default function Home() {
                           </tr>
                         </thead>
                         <tbody>
-                          {nasabahs.length > 0 ? (
-                            nasabahs.map(n => (
+                          {filteredNasabahTableData.length > 0 ? (
+                            filteredNasabahTableData.map(n => (
                               <tr key={n.customer_id}>
                                 <td>
                                   <div className="tdm">
@@ -1023,28 +1038,39 @@ export default function Home() {
                                     </div>
                                   </div>
                                 </td>
-                                <td><span className="mono" style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink)' }}>{formatNasabahId(n.customer_id, n.pos_id || activePosId)}</span></td>
+                                <td><span className="td-d">{formatNasabahId(n.customer_id, n.pos_id || activePosId)}</span></td>
                                 <td style={{ fontSize: '11.5px', color: 'var(--muted)' }}>{n.address}</td>
                                 <td><span className="td-d">{formatDate(n.created_at)}</span></td>
                                 <td><span className="mono tp-c">Rp. {parseFloat(n.balance || 0).toLocaleString('id-ID')}</span></td>
                                 <td><span className={`badge ${n.status === 'INACTIVE' ? 'b-r' : 'b-g'}`}>{n.status === 'INACTIVE' ? 'Tidak Aktif' : 'Aktif'}</span></td>
                                 <td>
                                   <div className="td-act">
-                                    <button className="btn btn-sm btn-ghost" onClick={() => showToast('Edit detail')}>Edit</button>
-                                    <button className="btn btn-sm btn-ghost" onClick={() => showToast('Detail nasabah')}>Detail</button>
+                                    <button 
+                                      className="btn btn-sm btn-ghost" 
+                                      onClick={() => {
+                                        setEditingNasabah(n);
+                                        setNasabahEditForm({
+                                          name: n.name || '',
+                                          address: n.address || '',
+                                          status: n.status || 'ACTIVE'
+                                        });
+                                        setTanggalNasabah(getCurrentDateTimeLocal());
+                                        setModalType('EDIT_NASABAH');
+                                        setIsModalOpen(true);
+                                      }}
+                                    >
+                                      Edit
+                                    </button>
                                   </div>
                                 </td>
                               </tr>
                             ))
                           ) : (
-                            <>
-                              <tr><td><div className="tdm"><div className="av">SR</div><div><div className="mn">Siti Rahayu</div></div></div></td><td><span className="mono" style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink)' }}>WW-BA-0041</span></td><td style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Jl. Melati No. 12, RT 03</td><td><span className="td-d">14 Jan 2023</span></td><td><span className="mono tp-c">Rp. 87.500</span></td><td><span className="badge b-g">Aktif</span></td><td><div className="td-act"><button className="btn btn-sm btn-ghost" onClick={() => showToast('Edit detail')}>Edit</button><button className="btn btn-sm btn-ghost" onClick={() => showToast('Detail nasabah')}>Detail</button></div></td></tr>
-                              <tr><td><div className="tdm"><div className="av">BW</div><div><div className="mn">Budi Wahyono</div></div></div></td><td><span className="mono" style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink)' }}>WW-BA-0027</span></td><td style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Jl. Mawar No. 5, RT 01</td><td><span className="td-d">05 Nov 2022</span></td><td><span className="mono tp-c">Rp. 124.000</span></td><td><span className="badge b-g">Aktif</span></td><td><div className="td-act"><button className="btn btn-sm btn-ghost" onClick={() => showToast('Edit detail')}>Edit</button><button className="btn btn-sm btn-ghost" onClick={() => showToast('Detail nasabah')}>Detail</button></div></td></tr>
-                              <tr><td><div className="tdm"><div className="av">MA</div><div><div className="mn">Murti Astuti</div></div></div></td><td><span className="mono" style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink)' }}>WW-BA-0088</span></td><td style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Jl. Anggrek No. 8, RT 07</td><td><span className="td-d">18 Mar 2024</span></td><td><span className="mono tp-c">Rp. 42.000</span></td><td><span className="badge b-g">Aktif</span></td><td><div className="td-act"><button className="btn btn-sm btn-ghost" onClick={() => showToast('Edit detail')}>Edit</button><button className="btn btn-sm btn-ghost" onClick={() => showToast('Detail nasabah')}>Detail</button></div></td></tr>
-                              <tr><td><div className="tdm"><div className="av">DH</div><div><div className="mn">Dewi Hapsari</div></div></div></td><td><span className="mono" style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink)' }}>WW-BA-0013</span></td><td style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Jl. Kenanga No. 3, RT 04</td><td><span className="td-d">12 Agt 2022</span></td><td><span className="mono tp-c">Rp. 215.000</span></td><td><span className="badge b-g">Aktif</span></td><td><div className="td-act"><button className="btn btn-sm btn-ghost" onClick={() => showToast('Edit detail')}>Edit</button><button className="btn btn-sm btn-ghost" onClick={() => showToast('Detail nasabah')}>Detail</button></div></td></tr>
-                              <tr><td><div className="tdm"><div className="av" style={{ background: 'var(--red-s)', borderColor: 'rgba(200,60,60,.2)', color: 'var(--red)' }}>PN</div><div><div className="mn">Putri Ningrum</div></div></div></td><td><span className="mono" style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink)' }}>WW-BA-0076</span></td><td style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Jl. Dahlia No. 19, RT 02</td><td><span className="td-d">01 Jun 2023</span></td><td><span className="mono" style={{ color: 'var(--muted)' }}>Rp. 0</span></td><td><span className="badge b-r">Tidak Aktif</span></td><td><div className="td-act"><button className="btn btn-sm btn-ghost" onClick={() => showToast('Edit detail')}>Edit</button><button className="btn btn-sm btn-ghost" onClick={() => showToast('Detail nasabah')}>Detail</button></div></td></tr>
-                              <tr><td><div className="tdm"><div className="av av-g">HL</div><div><div className="mn">Hani Lestari</div></div></div></td><td><span className="mono" style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink)' }}>WW-BA-0142</span></td><td style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Jl. Tulip No. 7, RT 05</td><td><span className="td-d">24 Feb 2025</span></td><td><span className="mono" style={{ color: 'var(--muted)' }}>Rp. 0</span></td><td><span className="badge b-g">Aktif</span></td><td><div className="td-act"><button className="btn btn-sm btn-ghost" onClick={() => showToast('Edit detail')}>Edit</button><button className="btn btn-sm btn-ghost" onClick={() => showToast('Detail nasabah')}>Detail</button></div></td></tr>
-                            </>
+                            <tr>
+                              <td colSpan="7" style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--muted)', fontSize: '12.5px' }}>
+                                Tidak ada data nasabah yang sesuai dengan filter / pencarian.
+                              </td>
+                            </tr>
                           )}
                         </tbody>
                       </table>
@@ -1684,13 +1710,15 @@ export default function Home() {
               <div>
                 <div className="mt">
                   {modalType === 'SETORAN' && 'Setoran Baru'}
-                  {modalType === 'NASABAH' && 'Registrasi Nasabah Baru'}
+                  {modalType === 'NASABAH' && 'Nasabah Baru'}
+                  {modalType === 'EDIT_NASABAH' && 'Edit Nasabah'}
                   {modalType === 'HARGA' && 'Update Harga Sampah'}
                   {modalType === 'PENARIKAN' && 'Penarikan Saldo Nasabah'}
                 </div>
                 <div className="msub">
                   {modalType === 'SETORAN' && 'Isi data setoran sampah nasabah'}
-                  {modalType === 'NASABAH' && 'Input data profil nasabah baru'}
+                  {modalType === 'NASABAH' && 'Isi data diri nasabah'}
+                  {modalType === 'EDIT_NASABAH' && 'Ubah data diri nasabah'}
                   {modalType === 'HARGA' && 'Ubah daftar harga beli per kg'}
                   {modalType === 'PENARIKAN' && 'Input nominal pencairan saldo'}
                 </div>
@@ -1894,32 +1922,115 @@ export default function Home() {
 
               {modalType === 'NASABAH' && (
                 <>
+                  <div className="fr">
+                    <div className="fg">
+                      <label className="fl">Kode Nasabah</label>
+                      <input 
+                        className="fi" 
+                        value={`WW-${(activePosId || 'BA').toUpperCase()}-0025`}
+                        disabled 
+                        style={{ background: '#f4f6f3', color: '#8a9e8a', cursor: 'not-allowed' }}
+                      />
+                    </div>
+                    <div className="fg">
+                      <label className="fl">Tanggal Penambahan</label>
+                      <input 
+                        className="fi" 
+                        type="datetime-local"
+                        value={tanggalNasabah}
+                        onChange={(e) => setTanggalNasabah(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
                   <div className="fg">
-                    <label className="fl">Nama Lengkap</label>
+                    <label className="fl">Nama Nasabah</label>
                     <input 
                       className="fi" 
-                      placeholder="Masukkan nama nasabah" 
-                      value={newNasabahForm.name}
-                      onChange={(e) => setNewNasabahForm({ ...newNasabahForm, name: e.target.value })}
+                      placeholder="Nama lengkap nasabah" 
+                      value={nasabahNewForm.name}
+                      onChange={(e) => setNasabahNewForm({ ...nasabahNewForm, name: e.target.value })}
                     />
                   </div>
+
                   <div className="fg">
-                    <label className="fl">Alamat Rumah</label>
+                    <label className="fl">Alamat Nasabah</label>
                     <input 
                       className="fi" 
-                      placeholder="Alamat lengkap nasabah" 
-                      value={newNasabahForm.address}
-                      onChange={(e) => setNewNasabahForm({ ...newNasabahForm, address: e.target.value })}
+                      placeholder="Alamat singkat nasabah" 
+                      value={nasabahNewForm.address}
+                      onChange={(e) => setNasabahNewForm({ ...nasabahNewForm, address: e.target.value })}
                     />
                   </div>
+                </>
+              )}
+
+              {modalType === 'EDIT_NASABAH' && editingNasabah && (
+                <>
+                  <div className="fr">
+                    <div className="fg">
+                      <label className="fl">Kode Nasabah</label>
+                      <input 
+                        className="fi" 
+                        value={formatNasabahId(editingNasabah.customer_id, editingNasabah.pos_id || activePosId)}
+                        disabled 
+                        style={{ background: '#f4f6f3', color: '#8a9e8a', cursor: 'not-allowed' }}
+                      />
+                    </div>
+                    <div className="fg">
+                      <label className="fl">Tanggal Perubahan</label>
+                      <input 
+                        className="fi" 
+                        type="datetime-local"
+                        value={tanggalNasabah}
+                        onChange={(e) => setTanggalNasabah(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
                   <div className="fg">
-                    <label className="fl">No. HP / Whatsapp</label>
+                    <label className="fl">Nama Nasabah</label>
                     <input 
                       className="fi" 
-                      placeholder="08xxxxxxxxxx" 
-                      value={newNasabahForm.phone}
-                      onChange={(e) => setNewNasabahForm({ ...newNasabahForm, phone: e.target.value })}
+                      value={nasabahEditForm.name}
+                      onChange={(e) => setNasabahEditForm({ ...nasabahEditForm, name: e.target.value })}
                     />
+                  </div>
+
+                  <div className="fg">
+                    <label className="fl">Alamat Nasabah</label>
+                    <input 
+                      className="fi" 
+                      value={nasabahEditForm.address}
+                      onChange={(e) => setNasabahEditForm({ ...nasabahEditForm, address: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="fg">
+                    <label className="fl">Status Nasabah</label>
+                    <div 
+                      className="fi" 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '8px', 
+                        cursor: 'pointer', 
+                        userSelect: 'none',
+                        padding: '6px 12px',
+                        background: '#fff'
+                      }}
+                      onClick={() => setNasabahEditForm({
+                        ...nasabahEditForm,
+                        status: nasabahEditForm.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
+                      })}
+                    >
+                      <span className={`badge ${nasabahEditForm.status === 'INACTIVE' ? 'b-r' : 'b-g'}`}>
+                        {nasabahEditForm.status === 'INACTIVE' ? 'Tidak Aktif' : 'Aktif'}
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--muted)', marginLeft: 'auto' }}>
+                        Klik untuk mengubah
+                      </span>
+                    </div>
                   </div>
                 </>
               )}
@@ -1955,12 +2066,12 @@ export default function Home() {
               )}
             </div>
 
-            <div className="mf">
-              <button className="btn btn-ghost" onClick={() => setIsModalOpen(false)}>Batal</button>
-              {modalType === 'SETORAN' && <button className="btn btn-gold" onClick={handleDepositSubmit}>Simpan Setoran</button>}
-              {modalType === 'NASABAH' && <button className="btn btn-gold" onClick={handleRegisterNasabah}>Daftarkan Nasabah</button>}
-              {modalType === 'PENARIKAN' && <button className="btn btn-gold" onClick={handleWithdrawConfirm}>Cairkan Saldo</button>}
-              {modalType === 'HARGA' && <button className="btn btn-gold" onClick={() => { showToast('Harga berhasil diperbarui ✓'); setIsModalOpen(false); }}>Simpan Harga</button>}
+            <div className="mf" style={{ justifyContent: 'flex-end' }}>
+              {modalType === 'SETORAN' && <button className="btn btn-gold" onClick={handleDepositSubmit}>Simpan</button>}
+              {modalType === 'NASABAH' && <button className="btn btn-gold" onClick={handleRegisterNasabah}>Simpan</button>}
+              {modalType === 'EDIT_NASABAH' && <button className="btn btn-gold" onClick={handleUpdateNasabah}>Simpan</button>}
+              {modalType === 'PENARIKAN' && <button className="btn btn-gold" onClick={handleWithdrawConfirm}>Simpan</button>}
+              {modalType === 'HARGA' && <button className="btn btn-gold" onClick={() => { showToast('Harga berhasil diperbarui ✓'); setIsModalOpen(false); }}>Simpan</button>}
             </div>
           </div>
         </div>
