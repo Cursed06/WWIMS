@@ -5,10 +5,10 @@ const router = express.Router();
 
 // 1. Manual Penimbangan (Deposit Waste) API with ACID transaction guarantees
 router.post('/weigh', async (req, res) => {
-  const { customer_id, pos_id, vendor_id, items, created_by } = req.body;
+  const { customer_id, pos_id, items, created_by } = req.body;
 
-  if (!customer_id || !pos_id || !vendor_id || !items || !Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'customer_id, pos_id, vendor_id, and non-empty items array are required' });
+  if (!customer_id || !pos_id || !items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'customer_id, pos_id, and non-empty items array are required' });
   }
 
   try {
@@ -31,14 +31,17 @@ router.post('/weigh', async (req, res) => {
           throw new Error(`Invalid quantity for item ${waste_type_id}`);
         }
 
-        // Fetch waste type info to check default units
-        const wasteType = await tx.wasteType.findUnique({ where: { waste_type_id } });
+        // Fetch waste type info (which includes its assigned vendor_id)
+        const wasteType = await tx.wasteType.findUnique({
+          where: { waste_type_id },
+          include: { vendor: true }
+        });
+
         if (!wasteType) {
           throw new Error(`Waste type '${waste_type_id}' does not exist`);
         }
 
-        // FR-04: Jelantah (JE-01) always maps to Metro Oil (V-MO)
-        const activeVendorId = waste_type_id === 'JE-01' ? 'V-MO' : vendor_id;
+        const activeVendorId = wasteType.vendor_id;
 
         // Fetch vendor price for this waste type
         const vendorPrice = await tx.vendorPrice.findUnique({
@@ -65,9 +68,11 @@ router.post('/weigh', async (req, res) => {
 
         detailItems.push({
           waste_type_id,
+          vendor_id: activeVendorId,
           quantity: qtyNum,
           unit: wasteType.unit,
           price_snapshot: buyPrice,
+          sell_price_snapshot: sellPrice,
           subtotal: itemBuySubtotal
         });
       }
@@ -83,7 +88,6 @@ router.post('/weigh', async (req, res) => {
         data: {
           customer_id,
           pos_id,
-          vendor_id,
           total_buy_value: totalBuyValue,
           total_sell_value: totalSellValue,
           margin,
@@ -100,9 +104,11 @@ router.post('/weigh', async (req, res) => {
           data: {
             transaction_id: newTransaction.transaction_id,
             waste_type_id: detail.waste_type_id,
+            vendor_id: detail.vendor_id,
             quantity: detail.quantity,
             unit: detail.unit,
             price_snapshot: detail.price_snapshot,
+            sell_price_snapshot: detail.sell_price_snapshot,
             subtotal: detail.subtotal
           }
         });

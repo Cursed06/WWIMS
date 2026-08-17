@@ -3,11 +3,77 @@
 import React, { useState, useEffect } from 'react';
 import {
   Building2, Users, Scale, CreditCard, RefreshCw, Plus,
-  Trash2, Search, ArrowRight, ShieldAlert, Award, FileText, CheckCircle, CheckCircle2, Clock, Upload,
-  Layers, LogOut, Tag, UserPlus, X, Calendar, Download, Recycle, Banknote, Wallet
+  Trash2, Search, ArrowRight, ArrowLeft, ShieldAlert, Award, FileText, CheckCircle, CheckCircle2, Clock, Upload,
+  Layers, LogOut, Tag, UserPlus, X, Calendar, Download, Recycle, Banknote, Wallet, Newspaper, Wine, Package, Droplet, Boxes, Box, ChevronRight
 } from 'lucide-react';
 
 const API_BASE = "http://localhost:5001/api";
+
+const getCategoryIcon = (categoryName, size = 24) => {
+  const name = (categoryName || '').toLowerCase();
+
+  // Solid Plastic Bottle / Jug Icon
+  if (name.includes('plastik')) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#059669">
+        <path d="M9 2h6v2H9V2zm7.5 5h-9A1.5 1.5 0 0 0 6 8.5V20a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8.5A1.5 1.5 0 0 0 16.5 7zM11 11h2v7h-2v-7z" />
+      </svg>
+    );
+  }
+
+  // Solid Paper Document Icon
+  if (name.includes('kertas')) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#d97706">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5z" />
+      </svg>
+    );
+  }
+
+  // Solid Metal Can Icon
+  if (name.includes('logam')) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#4b5563">
+        <path d="M12 2C7.58 2 4 3.79 4 6v12c0 2.21 3.58 4 8 4s8-1.79 8-4V6c0-2.21-3.58-4-8-4zm0 2c3.87 0 6 1.34 6 2s-2.13 2-6 2-6-1.34-6-2 2.13-2 6-2z" />
+      </svg>
+    );
+  }
+
+  // Solid Glass Bottle Icon
+  if (name.includes('kaca')) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#0284c7">
+        <path d="M10 2h4v3.5l2 2.5V20a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V8l2-2.5V2zm1 2v1.5h2V4h-2z" />
+      </svg>
+    );
+  }
+
+  // Solid Oil Droplet Icon
+  if (name.includes('minyak') || name.includes('jelantah')) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#ea580c">
+        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+      </svg>
+    );
+  }
+
+  // Solid Package / Box Icon
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="#8b5cf6">
+      <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8z" />
+    </svg>
+  );
+};
+
+const getCategoryBg = (categoryName) => {
+  const name = (categoryName || '').toLowerCase();
+  if (name.includes('plastik')) return '#eef7f2';
+  if (name.includes('kertas')) return '#fdf6ea';
+  if (name.includes('logam')) return '#f0f2f5';
+  if (name.includes('kaca')) return '#e8f4fd';
+  if (name.includes('minyak') || name.includes('jelantah')) return '#fdeee8';
+  return '#f4eefd';
+};
 
 const WASTE_SUBTYPES = {
   'Plastik': ['PET Campur', 'Kerasan', 'Bodongan', 'Gelas Plastik', 'Kantong HD'],
@@ -105,13 +171,14 @@ export default function Home() {
   const [history, setHistory] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [posWasteTypes, setPosWasteTypes] = useState([]);
   const [selectedVendorPrices, setSelectedVendorPrices] = useState([]);
   const [selectedVendorId, setSelectedVendorId] = useState('V-BB');
 
   // UI Tabs / Modals
   const [pusatTab, setPusatTab] = useState('dashboard'); // dashboard, pos, pricing, logs
-  const [posTab, setPosTab] = useState('dashboard'); // dashboard, nasabah, penimbangan, jenis_sampah, tabungan, penarikan, harga_sampah, laporan_bulanan, history, pengaturan
-  const [settingsSubTab, setSettingsSubTab] = useState('profil'); // profil, pengguna, jadwal, backup
+  const [posTab, setPosTab] = useState('dashboard'); // dashboard, nasabah, penimbangan, jenis_sampah, tabungan, penarikan, harga_sampah, laporan_bulanan, history
+  const [selectedCategoryForDetail, setSelectedCategoryForDetail] = useState(null);
 
   // Search & Filter
   const [customerSearch, setCustomerSearch] = useState('');
@@ -186,6 +253,7 @@ export default function Home() {
     fetchNasabahList();
     fetchHistory();
     fetchAuditLogs();
+    fetchPosWasteTypes(activePosId);
     if (selectedVendorId) {
       fetchVendorPrices(selectedVendorId);
     }
@@ -279,6 +347,17 @@ export default function Home() {
       setSelectedVendorPrices(data);
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const fetchPosWasteTypes = async (posId) => {
+    try {
+      const res = await fetch(`${API_BASE}/prices/pos/${posId}/waste-types`);
+      const data = await res.json();
+      setPosWasteTypes(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error(e);
+      setPosWasteTypes([]);
     }
   };
 
@@ -457,10 +536,8 @@ export default function Home() {
     penarikan: { title: 'Penarikan Saldo', sub: '/ Kelola Penarikan' },
     harga: { title: 'Harga Sampah', sub: '/ Daftar Harga' },
     harga_sampah: { title: 'Harga Sampah', sub: '/ Daftar Harga' },
-    laporan: { title: 'Laporan Bulanan', sub: '/ Rekap Bulanan' },
-    laporan_bulanan: { title: 'Laporan Bulanan', sub: '/ Rekap Bulanan' },
-    history: { title: 'Riwayat Ledger', sub: '/ Log Mutasi POS' },
-    pengaturan: { title: 'Pengaturan', sub: '/ Konfigurasi Sistem' }
+    laporan_bulanan: { title: 'Laporan Bulanan', sub: '/ Ringkasan Operasional' },
+    history: { title: 'Riwayat Ledger', sub: '/ Transaksi System' }
   };
 
   const currentTitle = activeRole === 'ADMIN_PUSAT' 
@@ -601,13 +678,6 @@ export default function Home() {
                 {renderSidebarItem('history', 'Riwayat Ledger', (
                   <svg className="ic" viewBox="0 0 24 24" fill="currentColor" style={{ width: '16px', height: '16px', display: 'inline-block' }}>
                     <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89l.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7s-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54l.72-1.21l-3.5-2.08V8z" />
-                  </svg>
-                ), posTab, setPosTab)}
-
-                <div className="sb-sec">Sistem</div>
-                {renderSidebarItem('pengaturan', 'Pengaturan', (
-                  <svg className="ic" viewBox="0 0 24 24" fill="currentColor" style={{ width: '16px', height: '16px', display: 'inline-block' }}>
-                    <path d="M19.14 12.94c.04-.3.06-.61.06-.94c0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2" />
                   </svg>
                 ), posTab, setPosTab)}
               </>
@@ -1327,74 +1397,151 @@ export default function Home() {
               {/* PAGE: JENIS SAMPAH */}
               {(posTab === 'jenis' || posTab === 'jenis_sampah') && (
                 <>
-                  <div className="ph2">
-                    <div className="ph2-l">
-                      <div className="pt">Jenis <span>Sampah</span></div>
-                      <div className="ps">5 kategori aktif terdaftar</div>
-                    </div>
-                  </div>
-
-                  <div className="card-grid">
-                    <div className="card">
-                      <div className="card-icon" style={{ background: '#e8f4fd' }}>♻️</div>
-                      <div className="card-name">Plastik</div>
-                      <div className="card-price">Rp 1.500 / kg</div>
-                      <div className="card-meta">Termasuk: botol PET, kantong, wadah plastik keras</div>
-                      <div className="card-footer">
-                        <div><div style={{ fontSize: '10px', color: 'var(--faint)' }}>Disetor bulan ini</div><div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>412 kg</div></div>
-                        <div style={{ display: 'flex', gap: '6px' }}><button className="btn btn-sm btn-ghost">Edit</button></div>
+                  {!selectedCategoryForDetail ? (
+                    <>
+                      {/* Main Category Grid View (Image 1 Wireframe) */}
+                      <div className="ph2">
+                        <div className="ph2-l">
+                          <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '4px' }}>
+                            Jenis Sampah <span style={{ color: '#9ca3af' }}>/ Kategori Sampah</span>
+                          </div>
+                          <div className="pt">Jenis <span style={{ color: '#2d5a37' }}>Sampah</span></div>
+                          <div className="ps">{posWasteTypes.length || 6} kategori aktif terdaftar</div>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="card">
-                      <div className="card-icon" style={{ background: '#fdf8e8' }}>📰</div>
-                      <div className="card-name">Kertas</div>
-                      <div className="card-price">Rp 1.000 / kg</div>
-                      <div className="card-meta">Termasuk: koran, karton, kertas HVS, dus</div>
-                      <div className="card-footer">
-                        <div><div style={{ fontSize: '10px', color: 'var(--faint)' }}>Disetor bulan ini</div><div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>337 kg</div></div>
-                        <div style={{ display: 'flex', gap: '6px' }}><button className="btn btn-sm btn-ghost">Edit</button></div>
+                      <div className="card-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+                        {posWasteTypes.map(cat => (
+                          <div 
+                            key={cat.category_id} 
+                            className="card" 
+                            style={{ 
+                              cursor: 'pointer', 
+                              padding: '24px', 
+                              borderRadius: '16px', 
+                              border: '1px solid #e5e7eb', 
+                              background: '#ffffff',
+                              transition: 'all 0.2s ease',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                            }}
+                            onClick={() => setSelectedCategoryForDetail(cat.category_name)}
+                          >
+                            <div 
+                              style={{ 
+                                width: '54px', 
+                                height: '54px', 
+                                borderRadius: '12px', 
+                                background: getCategoryBg(cat.category_name), 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center',
+                                marginBottom: '20px'
+                              }}
+                            >
+                              {getCategoryIcon(cat.category_name, 26)}
+                            </div>
+                            <div style={{ fontSize: '18px', fontWeight: '700', color: '#111827', marginBottom: '4px' }}>
+                              {cat.category_name}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                              {cat.types.length} tipe terdaftar
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Sub-Page Detail View per Category (Image 2 Wireframe) */}
+                      {(() => {
+                        const catObj = posWasteTypes.find(c => c.category_name === selectedCategoryForDetail);
+                        const types = catObj ? catObj.types : [];
+                        const vendorName = types[0] ? types[0].vendor_name : (activePosId === 'BA' ? 'Bali Bersih' : 'Bali Waste Cycle');
+                        const vendorShort = vendorName.includes('Bali Waste Cycle') ? 'BWC' : (vendorName.includes('Bali Bersih') ? 'BWL' : vendorName);
 
-                    <div className="card">
-                      <div className="card-icon" style={{ background: '#f0f5f0' }}>🔩</div>
-                      <div className="card-name">Logam</div>
-                      <div className="card-price">Rp 3.000 / kg</div>
-                      <div className="card-meta">Termasuk: besi, aluminium, tembaga, kaleng</div>
-                      <div className="card-footer">
-                        <div><div style={{ fontSize: '10px', color: 'var(--faint)' }}>Disetor bulan ini</div><div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>236 kg</div></div>
-                        <div style={{ display: 'flex', gap: '6px' }}><button className="btn btn-sm btn-ghost">Edit</button></div>
-                      </div>
-                    </div>
+                        return (
+                          <>
+                            <div className="ph2">
+                              <div className="ph2-l">
+                                <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span 
+                                    onClick={() => setSelectedCategoryForDetail(null)} 
+                                    style={{ cursor: 'pointer', textDecoration: 'underline', color: 'var(--forest)' }}
+                                  >
+                                    Jenis Sampah
+                                  </span>
+                                  <span>/</span>
+                                  <span style={{ color: '#9ca3af' }}>Kategori Sampah</span>
+                                </div>
+                                <div className="pt">{vendorShort} – <span style={{ color: '#2d5a37' }}>{selectedCategoryForDetail}</span></div>
+                                <div className="ps">{types.length} Tipe terdaftar</div>
+                              </div>
+                              <button 
+                                className="btn btn-ghost" 
+                                onClick={() => setSelectedCategoryForDetail(null)}
+                                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                              >
+                                <ArrowLeft size={16} /> Kembali ke Kategori
+                              </button>
+                            </div>
 
-                    <div className="card">
-                      <div className="card-icon" style={{ background: '#e8f5f0' }}>🍶</div>
-                      <div className="card-name">Kaca</div>
-                      <div className="card-price">Rp 500 / kg</div>
-                      <div className="card-meta">Termasuk: botol kaca, pecahan kaca</div>
-                      <div className="card-footer">
-                        <div><div style={{ fontSize: '10px', color: 'var(--faint)' }}>Disetor bulan ini</div><div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>174 kg</div></div>
-                        <div style={{ display: 'flex', gap: '6px' }}><button className="btn btn-sm btn-ghost">Edit</button></div>
-                      </div>
-                    </div>
+                            <div className="card-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+                              {types.map(t => (
+                                <div 
+                                  key={t.waste_type_id} 
+                                  className="card" 
+                                  style={{ 
+                                    padding: '20px', 
+                                    borderRadius: '16px', 
+                                    border: '1px solid #e5e7eb', 
+                                    background: '#ffffff',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                                  }}
+                                >
+                                  <div 
+                                    style={{ 
+                                      width: '44px', 
+                                      height: '44px', 
+                                      borderRadius: '10px', 
+                                      background: getCategoryBg(selectedCategoryForDetail), 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'center',
+                                      marginBottom: '14px'
+                                    }}
+                                  >
+                                    {getCategoryIcon(selectedCategoryForDetail, 20)}
+                                  </div>
 
-                    <div className="card">
-                      <div className="card-icon" style={{ background: '#f5eee8' }}>💻</div>
-                      <div className="card-name">Elektronik</div>
-                      <div className="card-price">Rp 4.000 / kg</div>
-                      <div className="card-meta">Termasuk: HP rusak, PCB, kabel, baterai</div>
-                      <div className="card-footer">
-                        <div><div style={{ fontSize: '10px', color: 'var(--faint)' }}>Disetor bulan ini</div><div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>88 kg</div></div>
-                        <div style={{ display: 'flex', gap: '6px' }}><button className="btn btn-sm btn-ghost">Edit</button></div>
-                      </div>
-                    </div>
+                                  <div style={{ fontSize: '15px', fontWeight: '700', color: '#111827', marginBottom: '4px' }}>
+                                    {t.waste_name}
+                                  </div>
+                                  <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '14px', lineHeight: '1.4', minHeight: '34px' }}>
+                                    {t.description || `${t.waste_name} terpilah bersih.`}
+                                  </div>
 
-                    <div className="card" style={{ borderStyle: 'dashed', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--surf2)' }} onClick={() => showToast('Tambah jenis baru')}>
-                      <div style={{ fontSize: '28px', opacity: .3, marginBottom: '10px' }}>+</div>
-                      <div style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 500 }}>Tambah Jenis Sampah</div>
-                    </div>
-                  </div>
+                                  {/* Empty Image Slots for Trash Visualization (Placeholder for future photo uploads) */}
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '12px' }}>
+                                    {[1, 2, 3].map(slotIdx => (
+                                      <div 
+                                        key={slotIdx}
+                                        style={{
+                                          height: '76px',
+                                          borderRadius: '10px',
+                                          border: '1px solid #e5e7eb',
+                                          background: '#fafafa'
+                                        }}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </>
+                  )}
                 </>
               )}
 
@@ -1733,76 +1880,89 @@ export default function Home() {
                 <>
                   <div className="ph2">
                     <div className="ph2-l">
-                      <div className="pt">Harga <span>Sampah</span></div>
-                      <div className="ps">Daftar harga beli per kategori · Diperbarui 24 Feb 2025</div>
+                      <div className="pt">Harga <span style={{ color: '#2d5a37' }}>Sampah</span></div>
+                      <div className="ps">Daftar harga beli resmi per kategori sesuai sheet acuan vendor</div>
                     </div>
                   </div>
 
-                  <div className="panel mb-4">
-                    <div className="panel-head"><div className="panel-title">Tabel Harga Berlaku</div><div className="panel-sub">Harga per kilogram</div></div>
-                    <div className="tw">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Jenis Sampah</th>
-                            <th>Harga / kg</th>
-                            <th>Poin / kg</th>
-                            <th>Min. Setor</th>
-                            <th>Berlaku Sejak</th>
-                            <th>Diperbarui Oleh</th>
-                            <th>Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td><div className="tdm"><div className="av" style={{ background: '#e8f4fd', borderColor: '#bdd7f0', color: '#2563a8' }}>♻</div><div><div className="mn">Plastik</div><div className="mid">Botol PET, kantong, hdpe</div></div></div></td>
-                            <td><span className="price-big">Rp 1.500<span className="price-unit">/kg</span></span></td>
-                            <td><span className="mono tp-c">100 pts</span></td>
-                            <td style={{ fontSize: '12px', color: 'var(--muted)' }}>0,5 kg</td>
-                            <td><span className="td-d">01 Feb 2025</span></td>
-                            <td style={{ fontSize: '12px', color: 'var(--muted)' }}>Admin Sistem</td>
-                            <td><button className="btn btn-sm btn-ghost">Edit</button></td>
-                          </tr>
-                          <tr>
-                            <td><div className="tdm"><div className="av" style={{ background: '#fdf8e8', borderColor: '#e8d89a', color: '#9a6800' }}>📰</div><div><div className="mn">Kertas</div><div className="mid">Koran, karton, HVS, dus</div></div></div></td>
-                            <td><span className="price-big">Rp 1.000<span className="price-unit">/kg</span></span></td>
-                            <td><span className="mono tp-c">70 pts</span></td>
-                            <td style={{ fontSize: '12px', color: 'var(--muted)' }}>1 kg</td>
-                            <td><span className="td-d">01 Feb 2025</span></td>
-                            <td style={{ fontSize: '12px', color: 'var(--muted)' }}>Admin Sistem</td>
-                            <td><button className="btn btn-sm btn-ghost">Edit</button></td>
-                          </tr>
-                          <tr>
-                            <td><div className="tdm"><div className="av" style={{ background: '#f0f5f0', borderColor: '#9fc4a0', color: '#3d6b40' }}>🔩</div><div><div className="mn">Logam</div><div className="mid">Besi, aluminium, tembaga</div></div></div></td>
-                            <td><span className="price-big">Rp 3.000<span className="price-unit">/kg</span></span></td>
-                            <td><span className="mono tp-c">300 pts</span></td>
-                            <td style={{ fontSize: '12px', color: 'var(--muted)' }}>0,5 kg</td>
-                            <td><span className="td-d">24 Feb 2025</span></td>
-                            <td style={{ fontSize: '12px', color: 'var(--muted)' }}>Admin Sistem</td>
-                            <td><div style={{ display: 'flex', gap: '6px' }}><button className="btn btn-sm btn-ghost">Edit</button><span className="badge b-g" style={{ fontSize: '9.5px' }}>Baru diupdate</span></div></td>
-                          </tr>
-                          <tr>
-                            <td><div className="tdm"><div className="av" style={{ background: '#e8f5f0', borderColor: '#9fc4b0', color: '#2d7a5e' }}>🍶</div><div><div className="mn">Kaca</div><div className="mid">Botol kaca, pecahan</div></div></div></td>
-                            <td><span className="price-big">Rp 500<span className="price-unit">/kg</span></span></td>
-                            <td><span className="mono tp-c">50 pts</span></td>
-                            <td style={{ fontSize: '12px', color: 'var(--muted)' }}>2 kg</td>
-                            <td><span className="td-d">01 Jan 2025</span></td>
-                            <td style={{ fontSize: '12px', color: 'var(--muted)' }}>Admin Sistem</td>
-                            <td><button className="btn btn-sm btn-ghost">Edit</button></td>
-                          </tr>
-                          <tr>
-                            <td><div className="tdm"><div className="av" style={{ background: '#f5eee8', borderColor: '#d4b896', color: '#7a5c2e' }}>💻</div><div><div className="mn">Elektronik</div><div className="mid">HP, PCB, kabel, baterai</div></div></div></td>
-                            <td><span className="price-big">Rp 4.000<span className="price-unit">/kg</span></span></td>
-                            <td><span className="mono tp-c">400 pts</span></td>
-                            <td style={{ fontSize: '12px', color: 'var(--muted)' }}>0,1 kg</td>
-                            <td><span className="td-d">01 Feb 2025</span></td>
-                            <td style={{ fontSize: '12px', color: 'var(--muted)' }}>Admin Sistem</td>
-                            <td><button className="btn btn-sm btn-ghost">Edit</button></td>
-                          </tr>
-                        </tbody>
-                      </table>
+                  {posWasteTypes.length === 0 ? (
+                    <div className="panel mb-4" style={{ padding: '24px', textAlign: 'center', color: 'var(--muted)' }}>
+                      Belum ada data kategori & harga sampah terdaftar untuk POS ini.
                     </div>
-                  </div>
+                  ) : (
+                    posWasteTypes.map(cat => (
+                      <div key={cat.category_id} className="panel mb-4" style={{ marginBottom: '24px', borderRadius: '14px', overflow: 'hidden' }}>
+                        <div className="panel-head" style={{ background: '#fafafa', borderBottom: '1px solid #f0f0f0', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ 
+                              width: '36px', 
+                              height: '36px', 
+                              borderRadius: '10px', 
+                              background: getCategoryBg(cat.category_name), 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center' 
+                            }}>
+                              {getCategoryIcon(cat.category_name, 20)}
+                            </div>
+                            <div>
+                              <div className="panel-title" style={{ fontSize: '15px', fontWeight: '700', color: '#111827', letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                                {cat.category_name}
+                              </div>
+                              <div className="panel-sub" style={{ fontSize: '12px', color: '#6b7280' }}>
+                                {cat.types.length} jenis terdaftar
+                              </div>
+                            </div>
+                          </div>
+                          <span className="badge b-g" style={{ fontSize: '11px', padding: '4px 10px' }}>
+                            {cat.types[0]?.vendor_name || 'Vendor'}
+                          </span>
+                        </div>
+
+                        <div className="tw">
+                          <table>
+                            <thead>
+                              <tr>
+                                <th style={{ width: '45px', textAlign: 'center' }}>No</th>
+                                <th>Jenis Sampah</th>
+                                <th>Keterangan / Spesifikasi</th>
+                                <th>Harga Beli Nasabah</th>
+                                <th style={{ width: '90px' }}>Satuan</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {cat.types.map((t, itemIdx) => (
+                                <tr key={t.waste_type_id}>
+                                  <td style={{ textAlign: 'center', color: '#9ca3af', fontWeight: 500, fontSize: '12px' }}>
+                                    {itemIdx + 1}
+                                  </td>
+                                  <td>
+                                    <strong className="mn" style={{ fontSize: '13.5px', color: '#111827' }}>
+                                      {t.waste_name}
+                                    </strong>
+                                  </td>
+                                  <td style={{ fontSize: '12px', color: '#6b7280', maxWidth: '340px', lineHeight: '1.4' }}>
+                                    {t.description || `${t.waste_name} terpilah bersih.`}
+                                  </td>
+                                  <td>
+                                    <span className="price-big" style={{ fontSize: '14px', fontWeight: 700, color: 'var(--forest)' }}>
+                                      Rp {t.buy_price.toLocaleString('id-ID')}
+                                      <span className="price-unit" style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 400 }}>/{t.unit}</span>
+                                    </span>
+                                  </td>
+                                  <td>
+                                    <span className="badge b-y" style={{ fontSize: '10.5px', textTransform: 'uppercase' }}>
+                                      {t.unit}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </>
               )}
 
@@ -1940,129 +2100,6 @@ export default function Home() {
                   </div>
                 </>
               )}
-
-              {/* PAGE: PENGATURAN */}
-              {posTab === 'pengaturan' && (
-                <>
-                  <div className="ph2">
-                    <div className="ph2-l">
-                      <div className="pt">Pengaturan <span>Sistem</span></div>
-                      <div className="ps">Kelola konfigurasi Bank Sampah Wadhah Wangi</div>
-                    </div>
-                  </div>
-
-                  <div className="g2" style={{ gridTemplateColumns: '220px 1fr' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <button 
-                        className={`sb-item ${settingsSubTab === 'profil' ? 'active' : ''}`}
-                        style={{ borderRadius: '8px', color: settingsSubTab === 'profil' ? 'var(--forest)' : 'var(--muted)', background: settingsSubTab === 'profil' ? 'var(--gold)' : 'none', fontWeight: settingsSubTab === 'profil' ? '600' : '400' }}
-                        onClick={() => setSettingsSubTab('profil')}
-                      >
-                        🏛 Profil Bank
-                      </button>
-                      <button 
-                        className={`sb-item ${settingsSubTab === 'pengguna' ? 'active' : ''}`}
-                        style={{ borderRadius: '8px', color: settingsSubTab === 'pengguna' ? 'var(--forest)' : 'var(--muted)', background: settingsSubTab === 'pengguna' ? 'var(--gold)' : 'none', fontWeight: settingsSubTab === 'pengguna' ? '600' : '400' }}
-                        onClick={() => setSettingsSubTab('pengguna')}
-                      >
-                        👤 Pengguna
-                      </button>
-                      <button 
-                        className={`sb-item ${settingsSubTab === 'jadwal' ? 'active' : ''}`}
-                        style={{ borderRadius: '8px', color: settingsSubTab === 'jadwal' ? 'var(--forest)' : 'var(--muted)', background: settingsSubTab === 'jadwal' ? 'var(--gold)' : 'none', fontWeight: settingsSubTab === 'jadwal' ? '600' : '400' }}
-                        onClick={() => setSettingsSubTab('jadwal')}
-                      >
-                        📅 Jadwal
-                      </button>
-                      <button 
-                        className={`sb-item ${settingsSubTab === 'backup' ? 'active' : ''}`}
-                        style={{ borderRadius: '8px', color: settingsSubTab === 'backup' ? 'var(--forest)' : 'var(--muted)', background: settingsSubTab === 'backup' ? 'var(--gold)' : 'none', fontWeight: settingsSubTab === 'backup' ? '600' : '400' }}
-                        onClick={() => setSettingsSubTab('backup')}
-                      >
-                        💾 Backup
-                      </button>
-                    </div>
-
-                    <div>
-                      {settingsSubTab === 'profil' && (
-                        <div className="panel">
-                          <div className="panel-head"><div className="panel-title">Profil Bank Sampah</div></div>
-                          <div className="mb" style={{ padding: '20px 22px' }}>
-                            <div className="fr">
-                              <div className="fg"><label className="fl">Nama Bank Sampah</label><input className="fi" defaultValue="Bank Sampah Wadhah Wangi" /></div>
-                              <div className="fg"><label className="fl">Kode Bank</label><input className="fi" defaultValue="BSWW-2025" /></div>
-                            </div>
-                            <div className="fg"><label className="fl">Alamat</label><input className="fi" defaultValue="Jl. Lingkungan Hidup No. 1, RT 05 RW 02" /></div>
-                            <div className="fr">
-                              <div className="fg"><label className="fl">Kelurahan</label><input className="fi" defaultValue="Wadhah Indah" /></div>
-                              <div className="fg"><label className="fl">Kecamatan</label><input className="fi" defaultValue="Sukamaju" /></div>
-                            </div>
-                            <div className="fr">
-                              <div className="fg"><label className="fl">Kota</label><input className="fi" defaultValue="Bandung" /></div>
-                              <div className="fg"><label className="fl">Provinsi</label><input className="fi" defaultValue="Jawa Barat" /></div>
-                            </div>
-                          </div>
-                          <div className="mf">
-                            <button className="btn btn-ghost">Batal</button>
-                            <button className="btn btn-gold" onClick={() => showToast('Profil berhasil disimpan ✓')}>Simpan Perubahan</button>
-                          </div>
-                        </div>
-                      )}
-
-                      {settingsSubTab === 'pengguna' && (
-                        <div className="panel">
-                          <div className="panel-head"><div className="panel-title">Manajemen Pengguna</div><button className="btn btn-gold btn-sm">+ Tambah User</button></div>
-                          <div className="tw">
-                            <table>
-                              <thead>
-                                <tr><th>Nama</th><th>Username</th><th>Role</th><th>Status</th><th>Terakhir Login</th><th>Aksi</th></tr>
-                              </thead>
-                              <tbody>
-                                <tr><td><div className="tdm"><div className="av av-g">AS</div><div><div className="mn">Admin Sistem</div></div></div></td><td><span className="mono" style={{ fontSize: '11.5px' }}>admin</span></td><td><span className="badge b-g">Super Admin</span></td><td><span className="badge b-g">Aktif</span></td><td><span className="td-d">Sekarang</span></td><td><button className="btn btn-sm btn-ghost">Edit</button></td></tr>
-                                <tr><td><div className="tdm"><div className="av">OP</div><div><div className="mn">Operator 1</div></div></div></td><td><span className="mono" style={{ fontSize: '11.5px' }}>operator1</span></td><td><span className="badge b-y">Operator</span></td><td><span className="badge b-g">Aktif</span></td><td><span className="td-d">23 Feb 25</span></td><td><div className="td-act"><button className="btn btn-sm btn-ghost">Edit</button><button className="btn btn-sm btn-red">Hapus</button></div></td></tr>
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-
-                      {settingsSubTab === 'jadwal' && (
-                        <div className="panel">
-                          <div className="panel-head"><div className="panel-title">Jadwal Operasional</div></div>
-                          <div className="mb" style={{ padding: '20px 22px' }}>
-                            <div className="fr">
-                              <div className="fg"><label className="fl">Hari Buka</label><select className="fsel" defaultValue="Sabtu"><option>Sabtu</option><option>Minggu</option><option>Sabtu & Minggu</option></select></div>
-                              <div className="fg"><label className="fl">Jam Buka</label><input className="fi" defaultValue="08:00" /></div>
-                            </div>
-                            <div className="fr">
-                              <div className="fg"><label className="fl">Jam Tutup</label><input className="fi" defaultValue="12:00" /></div>
-                              <div className="fg"><label className="fl">Periode Laporan</label><select className="fsel" defaultValue="Bulanan"><option>Bulanan</option><option>Mingguan</option></select></div>
-                            </div>
-                          </div>
-                          <div className="mf"><button className="btn btn-gold" onClick={() => showToast('Jadwal berhasil disimpan ✓')}>Simpan</button></div>
-                        </div>
-                      )}
-
-                      {settingsSubTab === 'backup' && (
-                        <div className="panel">
-                          <div className="panel-head"><div className="panel-title">Backup & Restore Data</div></div>
-                          <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                            <div style={{ background: 'var(--surf2)', border: '1px solid var(--line)', borderRadius: '99px', padding: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div><div style={{ fontWeight: 600, fontSize: '13.5px' }}>Backup Otomatis</div><div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '3px' }}>Terakhir: 24 Feb 2025 02:00 WIB</div></div>
-                              <button className="btn btn-gold" onClick={() => showToast('Backup berhasil dibuat ✓')}>Backup Sekarang</button>
-                            </div>
-                            <div style={{ background: 'var(--red-s)', border: '1px solid rgba(200,60,60,.15)', borderRadius: '9px', padding: '18px' }}>
-                              <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--red)', marginBottom: '6px' }}>⚠ Zona Berbahaya</div>
-                              <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>Reset data akan menghapus semua transaksi dan tidak dapat dikembalikan.</div>
-                              <button className="btn btn-red btn-sm" onClick={() => showToast('Fungsi reset dibatasi')}>Reset Data Sistem</button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
             </>
           )}
         </main>
@@ -2168,114 +2205,125 @@ export default function Home() {
                   </div>
 
                   {/* Multi-Item Waste Sections */}
-                  {weighItems.map((item, idx) => (
-                    <React.Fragment key={idx}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 4px' }}>
-                        <div className="div-lbl" style={{ flex: 1, margin: 0 }}>
-                          DETAIL SAMPAH {idx + 1}
-                        </div>
-                        {weighItems.length > 1 && (
-                          <button 
-                            type="button" 
-                            onClick={() => {
-                              const updated = weighItems.filter((_, i) => i !== idx);
-                              setWeighItems(updated);
-                            }}
-                            title="Hapus detail sampah ini"
-                            style={{
-                              background: 'rgba(200, 60, 60, 0.08)',
-                              border: '1px solid rgba(200, 60, 60, 0.2)',
-                              color: 'var(--red)',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            <Trash2 size={12} />
-                            <span>Hapus</span>
-                          </button>
-                        )}
-                      </div>
+                  {weighItems.map((item, idx) => {
+                    const catObj = posWasteTypes.find(c => c.category_name === item.kategori);
+                    const typeOptions = catObj ? catObj.types : [];
 
-                      <div className="fr">
-                        <div className="fg">
-                          <label className="fl">Kategori Sampah</label>
-                          <select 
-                            className="fsel"
-                            value={item.kategori}
-                            onChange={(e) => {
-                              const kat = e.target.value;
-                              const updated = [...weighItems];
-                              updated[idx].kategori = kat;
-                              updated[idx].jenis = ''; // reset sub-type
-                              updated[idx].pengepul = getPengepulForCategory(kat);
-                              setWeighItems(updated);
-                            }}
-                          >
-                            <option value="">Pilih kategori...</option>
-                            <option value="Plastik">Plastik</option>
-                            <option value="Kertas">Kertas</option>
-                            <option value="Logam">Logam</option>
-                            <option value="Kaca">Kaca</option>
-                            <option value="Minyak">Minyak</option>
-                            <option value="Lainnya">Lainnya</option>
-                          </select>
+                    return (
+                      <React.Fragment key={idx}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 4px' }}>
+                          <div className="div-lbl" style={{ flex: 1, margin: 0 }}>
+                            DETAIL SAMPAH {idx + 1}
+                          </div>
+                          {weighItems.length > 1 && (
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                const updated = weighItems.filter((_, i) => i !== idx);
+                                setWeighItems(updated);
+                              }}
+                              title="Hapus detail sampah ini"
+                              style={{
+                                background: 'rgba(200, 60, 60, 0.08)',
+                                border: '1px solid rgba(200, 60, 60, 0.2)',
+                                color: 'var(--red)',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <Trash2 size={12} />
+                              <span>Hapus</span>
+                            </button>
+                          )}
                         </div>
 
-                        <div className="fg">
-                          <label className="fl">Berat (kg)</label>
-                          <input 
-                            className="fi" 
-                            type="text"
-                            placeholder="0.0" 
-                            value={item.berat}
-                            onChange={(e) => {
-                              const updated = [...weighItems];
-                              updated[idx].berat = e.target.value;
-                              setWeighItems(updated);
-                            }}
-                          />
-                        </div>
-                      </div>
+                        <div className="fr">
+                          <div className="fg">
+                            <label className="fl">Kategori Sampah</label>
+                            <select 
+                              className="fsel"
+                              value={item.kategori}
+                              onChange={(e) => {
+                                const kat = e.target.value;
+                                const updated = [...weighItems];
+                                updated[idx].kategori = kat;
+                                updated[idx].jenis = ''; // reset sub-type
+                                updated[idx].waste_type_id = '';
+                                const newCatObj = posWasteTypes.find(c => c.category_name === kat);
+                                const firstType = newCatObj && newCatObj.types[0] ? newCatObj.types[0] : null;
+                                updated[idx].pengepul = firstType ? firstType.vendor_name : 'Bali Bersih';
+                                setWeighItems(updated);
+                              }}
+                            >
+                              <option value="">Pilih kategori...</option>
+                              {posWasteTypes.map(c => (
+                                <option key={c.category_id} value={c.category_name}>{c.category_name}</option>
+                              ))}
+                            </select>
+                          </div>
 
-                      <div className="fr">
-                        <div className="fg">
-                          <label className="fl">Jenis Sampah</label>
-                          <select 
-                            className="fsel"
-                            value={item.jenis}
-                            disabled={!item.kategori}
-                            onChange={(e) => {
-                              const updated = [...weighItems];
-                              updated[idx].jenis = e.target.value;
-                              setWeighItems(updated);
-                            }}
-                          >
-                            <option value="">{item.kategori ? 'Pilih jenis...' : 'Pilih kategori dulu'}</option>
-                            {(WASTE_SUBTYPES[item.kategori] || []).map(sub => (
-                              <option key={sub} value={sub}>{sub}</option>
-                            ))}
-                          </select>
+                          <div className="fg">
+                            <label className="fl">Berat (kg)</label>
+                            <input 
+                              className="fi" 
+                              type="text"
+                              placeholder="0.0" 
+                              value={item.berat}
+                              onChange={(e) => {
+                                const updated = [...weighItems];
+                                updated[idx].berat = e.target.value;
+                                setWeighItems(updated);
+                              }}
+                            />
+                          </div>
                         </div>
 
-                        <div className="fg">
-                          <label className="fl">Pengepul</label>
-                          <input 
-                            className="fi" 
-                            value={item.pengepul || 'Bali Wastu Lestari'}
-                            disabled 
-                            style={{ background: '#f4f6f3', color: '#8a9e8a', cursor: 'not-allowed' }}
-                          />
+                        <div className="fr">
+                          <div className="fg">
+                            <label className="fl">Jenis Sampah</label>
+                            <select 
+                              className="fsel"
+                              value={item.waste_type_id || item.jenis}
+                              disabled={!item.kategori}
+                              onChange={(e) => {
+                                const wtId = e.target.value;
+                                const selectedType = typeOptions.find(t => t.waste_type_id === wtId || t.waste_name === wtId);
+                                const updated = [...weighItems];
+                                updated[idx].waste_type_id = wtId;
+                                updated[idx].jenis = selectedType ? selectedType.waste_name : wtId;
+                                updated[idx].pengepul = selectedType ? selectedType.vendor_name : (updated[idx].pengepul || 'Bali Bersih');
+                                setWeighItems(updated);
+                              }}
+                            >
+                              <option value="">{item.kategori ? 'Pilih jenis...' : 'Pilih kategori dulu'}</option>
+                              {typeOptions.map(t => (
+                                <option key={t.waste_type_id} value={t.waste_type_id}>
+                                  {t.waste_name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="fg">
+                            <label className="fl">Pengepul</label>
+                            <input 
+                              className="fi" 
+                              value={item.pengepul || 'Bali Bersih'}
+                              disabled 
+                              style={{ background: '#f4f6f3', color: '#8a9e8a', cursor: 'not-allowed' }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    </React.Fragment>
-                  ))}
+                      </React.Fragment>
+                    );
+                  })}
 
                   {/* Dark Green + Tambah Sampah Button */}
                   <button 

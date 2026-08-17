@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bank Sampah Wadhah Wangi</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --gold:#e8b323;--gold-h:#d4a01e;--gold-s:rgba(232,179,35,.12);--gold-xs:rgba(232,179,35,.06);
+  --forest:#1b3a1b;--forest2:#243d24;--green:#3d6b40;--green-s:rgba(61,107,64,.10);
+  --ink:#0f1a0f;--ink2:#2c3e2c;--muted:#6b7f6b;--faint:#a8b8a8;
+  --line:rgba(15,26,15,.08);--bg:#f5f7f4;--surf:#fff;--surf2:#f9faf8;
+  --red-s:rgba(200,60,60,.10);--red:#c53030;--amb-s:rgba(204,140,0,.12);--amb:#9a6800;
+  --blue-s:rgba(74,144,217,.10);--blue:#2563a8;
+}
+html,body{height:100%;font-family:'Sora',sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+
+/* ════════════════ LOGIN ════════════════ */
+#login-screen{
+  position:fixed;inset:0;z-index:9999;
+  display:flex;align-items:stretch;
+  background:var(--forest);
+}
+#login-screen.hidden{display:none}
+
+.login-left{
+  flex:1;display:flex;flex-direction:column;justify-content:center;padding:60px 64px;
+  position:relative;overflow:hidden;
+}
+.login-left::before{
+  content:'';position:absolute;top:-100px;right:-100px;width:400px;height:400px;
+  border-radius:50%;background:radial-gradient(circle,rgba(232,179,35,.18) 0%,transparent 70%);
+}
+.login-left::after{
+  content:'';position:absolute;bottom:-80px;left:-60px;width:300px;height:300px;
+  border-radius:50%;background:radial-gradient(circle,rgba(232,179,35,.10) 0%,transparent 70%);
+}
+.ll-inner{position:relative;z-index:1;max-width:400px;}
+.ll-logo{display:flex;align-items:center;gap:14px;margin-bottom:56px;}
+.ll-icon{width:48px;height:48px;background:var(--gold);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;}
+.ll-brand{font-size:15px;font-weight:700;color:#fff;line-height:1.3;}
+.ll-brand span{display:block;font-size:10.5px;font-weight:400;color:rgba(255,255,255,.4);letter-spacing:.06em;text-transform:uppercase;margin-top:2px;}
+.ll-heading{font-size:36px;font-weight:800;color:#fff;letter-spacing:-.04em;line-height:1.1;margin-bottom:10px;}
+.ll-heading em{color:var(--gold);font-style:normal;}
+.ll-sub{font-size:14px;color:rgba(255,255,255,.45);line-height:1.6;}
+.ll-stats{display:flex;gap:32px;margin-top:56px;}
+.ll-stat-val{font-size:26px;font-weight:800;color:var(--gold);letter-spacing:-.03em;}
+.ll-stat-lbl{font-size:11px;color:rgba(255,255,255,.35);margin-top:2px;font-weight:500;}
+
+.login-right{
+  width:460px;background:var(--surf);display:flex;flex-direction:column;justify-content:center;
+  padding:60px 52px;
+}
+.lr-head{margin-bottom:36px;}
+.lr-title{font-size:22px;font-weight:800;color:var(--ink);letter-spacing:-.03em;}
+.lr-sub{font-size:13px;color:var(--muted);margin-top:6px;}
+
+.form-group{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+.form-label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
+.form-input{
+  padding:11px 14px;border:1.5px solid var(--line);border-radius:9px;
+  font-family:'Sora',sans-serif;font-size:13.5px;color:var(--ink);background:var(--surf2);
+  outline:none;transition:border-color .15s,box-shadow .15s,background .15s;width:100%;
+}
+.form-input:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-s);background:var(--surf);}
+.form-input::placeholder{color:var(--faint);}
+
+.form-row-check{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;}
+.check-label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);cursor:pointer;}
+.check-label input{accent-color:var(--gold);width:15px;height:15px;}
+.form-link{font-size:13px;color:var(--green);font-weight:600;cursor:pointer;text-decoration:none;}
+.form-link:hover{color:var(--gold-h);}
+
+.btn-login{
+  width:100%;padding:13px;background:var(--gold);border:none;border-radius:9px;
+  font-family:'Sora',sans-serif;font-size:14px;font-weight:700;color:var(--forest);
+  cursor:pointer;transition:all .2s;box-shadow:0 2px 12px rgba(232,179,35,.4);
+}
+.btn-login:hover{background:var(--gold-h);transform:translateY(-1px);box-shadow:0 6px 20px rgba(232,179,35,.45);}
+
+.lr-divider{display:flex;align-items:center;gap:12px;margin:24px 0;font-size:11.5px;color:var(--faint);font-weight:500;}
+.lr-divider::before,.lr-divider::after{content:'';flex:1;height:1px;background:var(--line);}
+.lr-footer{text-align:center;font-size:12.5px;color:var(--muted);}
+.lr-footer strong{color:var(--ink);}
+
+/* ════════════════ APP SHELL ════════════════ */
+#app{display:flex;min-height:100vh;}
+#app.hidden{display:none}
+
+/* Sidebar */
+.sidebar{width:232px;min-height:100vh;background:var(--forest);display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;z-index:50;}
+.sb-logo{padding:24px 20px 20px;display:flex;align-items:center;gap:11px;border-bottom:1px solid rgba(255,255,255,.06);}
+.sb-icon{width:36px;height:36px;background:var(--gold);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
+.sb-name{font-size:12.5px;font-weight:700;color:#fff;letter-spacing:-.01em;}
+.sb-tag{font-size:10px;font-weight:400;color:rgba(255,255,255,.35);letter-spacing:.04em;text-transform:uppercase;margin-top:1px;}
+.sb-nav{flex:1;padding:14px 12px;overflow-y:auto;}
+.sb-sec{font-size:9.5px;font-weight:600;letter-spacing:.10em;text-transform:uppercase;color:rgba(255,255,255,.25);padding:14px 8px 5px;}
+.sb-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:13px;font-weight:400;color:rgba(255,255,255,.55);cursor:pointer;text-decoration:none;transition:background .15s,color .15s;user-select:none;}
+.sb-item:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.85);}
+.sb-item.active{background:var(--gold);color:var(--forest);font-weight:600;}
+.sb-item .ic{font-size:14px;flex-shrink:0;width:18px;text-align:center;}
+.sb-pill{margin-left:auto;font-size:10px;font-weight:600;padding:1px 7px;border-radius:20px;background:rgba(255,255,255,.12);color:rgba(255,255,255,.6);}
+.sb-item.active .sb-pill{background:rgba(27,58,27,.2);color:var(--forest);}
+.sb-footer{border-top:1px solid rgba(255,255,255,.06);padding:14px 18px;display:flex;align-items:center;gap:10px;}
+.sb-av{width:32px;height:32px;border-radius:50%;background:var(--gold);color:var(--forest);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.sb-un{font-size:12.5px;font-weight:600;color:#fff;}
+.sb-ur{font-size:10.5px;color:rgba(255,255,255,.35);margin-top:1px;}
+.sb-logout{margin-left:auto;font-size:11px;color:rgba(255,255,255,.3);cursor:pointer;padding:4px 6px;border-radius:5px;transition:all .15s;}
+.sb-logout:hover{color:rgba(255,255,255,.7);background:rgba(255,255,255,.06);}
+
+/* Main */
+.main{margin-left:232px;flex:1;display:flex;flex-direction:column;min-height:100vh;}
+
+/* Topbar */
+.topbar{height:58px;background:var(--surf);border-bottom:1px solid var(--line);padding:0 28px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:40;}
+.tb-title{flex:1;font-size:14px;font-weight:700;color:var(--ink);letter-spacing:-.02em;}
+.tb-sub{font-size:11.5px;font-weight:400;color:var(--muted);margin-left:6px;}
+.search{display:flex;align-items:center;gap:7px;background:var(--surf2);border:1px solid var(--line);border-radius:8px;padding:7px 11px;width:200px;transition:border-color .15s,box-shadow .15s;}
+.search:focus-within{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-s);}
+.search input{border:none;background:none;font-family:'Sora',sans-serif;font-size:12.5px;color:var(--ink);outline:none;width:100%;}
+.search input::placeholder{color:var(--faint);}
+.s-ic{color:var(--faint);font-size:13px;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;font-family:'Sora',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap;}
+.btn-ghost{background:none;border:1px solid var(--line);color:var(--muted);}
+.btn-ghost:hover{border-color:var(--faint);color:var(--ink);background:var(--surf2);}
+.btn-gold{background:var(--gold);color:var(--forest);box-shadow:0 1px 4px rgba(232,179,35,.4);}
+.btn-gold:hover{background:var(--gold-h);transform:translateY(-1px);box-shadow:0 4px 14px rgba(232,179,35,.4);}
+.btn-sm{padding:5px 11px;font-size:11.5px;}
+.btn-red{background:var(--red-s);color:var(--red);border:1px solid rgba(200,60,60,.2);}
+.btn-red:hover{background:rgba(200,60,60,.18);}
+
+/* Page */
+.page{padding:24px 28px;display:flex;flex-direction:column;gap:20px;animation:fadeUp .3s both;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.page.hidden{display:none}
+
+/* Page header */
+.ph2{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+.ph2-l .pt{font-size:20px;font-weight:800;color:var(--ink);letter-spacing:-.03em;}
+.ph2-l .pt span{color:var(--green);}
+.ph2-l .ps{font-size:12px;color:var(--muted);margin-top:3px;}
+.ph2-r{display:flex;gap:8px;align-items:center;}
+
+/* Stats row */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.stat{background:var(--surf);border:1px solid var(--line);border-radius:11px;padding:18px 20px;position:relative;overflow:hidden;transition:box-shadow .2s,transform .2s;}
+.stat:hover{box-shadow:0 6px 24px rgba(15,26,15,.09);transform:translateY(-2px);}
+.stat.hl{background:var(--forest);border-color:transparent;}
+.stat-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.si{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;}
+.si-g{background:var(--gold-s)} .si-gr{background:var(--green-s)} .si-a{background:var(--amb-s)} .si-w{background:rgba(255,255,255,.10)} .si-b{background:var(--blue-s)}
+.trend{font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:20px;}
+.t-up{background:rgba(50,160,80,.10);color:#1e7d3e} .t-dw{background:var(--red-s);color:var(--red)} .t-uw{background:rgba(255,255,255,.10);color:rgba(255,255,255,.6)}
+.stat-num{font-size:26px;font-weight:800;letter-spacing:-.04em;line-height:1;color:var(--ink);}
+.stat.hl .stat-num{color:var(--gold);}
+.stat-lbl{font-size:11px;font-weight:500;color:var(--muted);margin-top:4px;}
+.stat.hl .stat-lbl{color:rgba(255,255,255,.4);}
+
+/* Panel */
+.panel{background:var(--surf);border:1px solid var(--line);border-radius:11px;overflow:hidden;}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);}
+.panel-title{font-size:13.5px;font-weight:700;color:var(--ink);letter-spacing:-.02em;}
+.panel-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.panel-link{font-size:12px;font-weight:600;color:var(--green);cursor:pointer;}
+.panel-link:hover{color:var(--gold-h);}
+
+/* Tabs */
+.tabs{display:flex;border-bottom:1px solid var(--line);padding:0 20px;}
+.tab{font-size:12px;font-weight:500;color:var(--muted);padding:9px 12px 8px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s;}
+.tab.on{color:var(--ink);font-weight:600;border-bottom-color:var(--gold);}
+
+/* Table */
+.tw{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;}
+thead th{text-align:left;padding:9px 20px;font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);background:var(--surf2);border-bottom:1px solid var(--line);}
+tbody tr{border-bottom:1px solid var(--line);transition:background .12s;}
+tbody tr:last-child{border-bottom:none;}
+tbody tr:hover{background:var(--gold-xs);}
+tbody td{padding:12px 20px;font-size:12.5px;color:var(--ink2);vertical-align:middle;}
+.tdm{display:flex;align-items:center;gap:9px;}
+.av{width:28px;height:28px;border-radius:7px;background:var(--gold-s);border:1.5px solid rgba(232,179,35,.3);color:var(--gold-h);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.av-g{background:var(--green-s);border-color:rgba(61,107,64,.3);color:var(--green);}
+.av-b{background:var(--blue-s);border-color:rgba(37,99,168,.2);color:var(--blue);}
+.mn{font-weight:600;font-size:12.5px;color:var(--ink);}
+.mid{font-size:10px;color:var(--faint);font-family:'Geist Mono',monospace;}
+.mono{font-family:'Geist Mono',monospace;font-size:12px;font-weight:500;}
+.tw-c{color:var(--green)} .tp-c{color:var(--gold-h);font-weight:600}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:5px;}
+.badge::before{content:'';width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.b-g{background:rgba(45,135,70,.10);color:#1d7a3e}.b-g::before{background:#2d8746}
+.b-y{background:var(--amb-s);color:var(--amb)}.b-y::before{background:var(--gold)}
+.b-r{background:var(--red-s);color:var(--red)}.b-r::before{background:var(--red)}
+.b-b{background:var(--blue-s);color:var(--blue)}.b-b::before{background:var(--blue)}
+.td-d{font-size:11px;color:var(--faint);font-family:'Geist Mono',monospace;}
+.td-act{display:flex;gap:6px;}
+
+/* Grid */
+.g2{display:grid;grid-template-columns:1fr 300px;gap:14px;align-items:start;}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+
+/* Right col helpers */
+.wl{padding:14px 18px;display:flex;flex-direction:column;gap:11px;}
+.wr{display:flex;flex-direction:column;gap:4px;}
+.wm{display:flex;align-items:center;justify-content:space-between;}
+.wn{font-size:12px;font-weight:500;color:var(--ink2);display:flex;align-items:center;gap:6px;}
+.wd{width:7px;height:7px;border-radius:2px;flex-shrink:0;}
+.wv{font-family:'Geist Mono',monospace;font-size:11.5px;font-weight:600;color:var(--ink);}
+.wp{font-size:9.5px;color:var(--faint);font-family:'Geist Mono',monospace;margin-left:3px;}
+.bt{height:4px;background:var(--bg);border-radius:99px;overflow:hidden;}
+.bf{height:100%;border-radius:99px;}
+.ms{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border-top:1px solid var(--line);}
+.ms-c{background:var(--surf);padding:12px 16px;}
+.ms-v{font-size:16px;font-weight:800;letter-spacing:-.03em;color:var(--ink);}
+.ms-l{font-size:10px;color:var(--faint);margin-top:1px;font-weight:500;}
+
+/* Activity */
+.al{padding:6px 0;}
+.ai{display:flex;align-items:flex-start;gap:10px;padding:10px 18px;border-bottom:1px solid var(--line);transition:background .12s;}
+.ai:last-child{border-bottom:none}
+.ai:hover{background:var(--gold-xs);}
+.adot{width:6px;height:6px;border-radius:50%;background:var(--gold);margin-top:4px;flex-shrink:0;}
+.at{font-size:12px;color:var(--muted);line-height:1.5;}
+.at strong{color:var(--ink);font-weight:600;}
+.atime{font-size:10px;color:var(--faint);font-family:'Geist Mono',monospace;margin-top:2px;}
+
+/* FAB */
+.fab{position:fixed;bottom:24px;right:24px;width:50px;height:50px;background:var(--gold);border:none;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--forest);cursor:pointer;box-shadow:0 4px 18px rgba(232,179,35,.5);transition:all .2s;z-index:200;}
+.fab:hover{transform:scale(1.08) rotate(45deg);box-shadow:0 8px 28px rgba(232,179,35,.55);}
+
+/* Modal */
+.ov{display:none;position:fixed;inset:0;background:rgba(15,26,15,.5);backdrop-filter:blur(6px);z-index:300;align-items:center;justify-content:center;}
+.ov.open{display:flex;animation:fi .2s;}
+@keyframes fi{from{opacity:0}to{opacity:1}}
+.modal{background:var(--surf);border-radius:14px;width:480px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 28px 70px rgba(15,26,15,.22);animation:mi .22s ease;}
+@keyframes mi{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.mh{padding:22px 22px 18px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;justify-content:space-between;}
+.mt{font-size:15px;font-weight:800;color:var(--ink);letter-spacing:-.03em;}
+.msub{font-size:11.5px;color:var(--muted);margin-top:3px;}
+.mx{width:28px;height:28px;border-radius:6px;border:1px solid var(--line);background:none;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s;}
+.mx:hover{background:var(--surf2);color:var(--ink);}
+.mb{padding:18px 22px;display:flex;flex-direction:column;gap:14px;}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.fg{display:flex;flex-direction:column;gap:5px;}
+.fl{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);}
+.fi,.fsel{padding:9px 12px;border:1.5px solid var(--line);border-radius:8px;font-family:'Sora',sans-serif;font-size:13px;color:var(--ink);background:var(--surf2);outline:none;transition:border-color .15s,box-shadow .15s,background .15s;width:100%;appearance:none;}
+.fi:focus,.fsel:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-s);background:var(--surf);}
+.fi::placeholder{color:var(--faint);}
+.mf{padding:14px 22px 20px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;}
+.div-lbl{display:flex;align-items:center;gap:10px;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);}
+.div-lbl::before,.div-lbl::after{content:'';flex:1;height:1px;background:var(--line);}
+
+/* Card grid for pages like Jenis Sampah */
+.card-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.card{background:var(--surf);border:1px solid var(--line);border-radius:11px;padding:20px;transition:box-shadow .2s,transform .2s;cursor:pointer;}
+.card:hover{box-shadow:0 6px 20px rgba(15,26,15,.09);transform:translateY(-2px);}
+.card-icon{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:14px;}
+.card-name{font-size:14px;font-weight:700;color:var(--ink);letter-spacing:-.02em;}
+.card-price{font-family:'Geist Mono',monospace;font-size:13px;font-weight:600;color:var(--gold-h);margin-top:4px;}
+.card-meta{font-size:11px;color:var(--muted);margin-top:8px;}
+.card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);}
+
+/* Harga Sampah price table highlight */
+.price-big{font-size:22px;font-weight:800;letter-spacing:-.03em;color:var(--ink);}
+.price-unit{font-size:11px;color:var(--muted);margin-left:4px;font-weight:500;}
+
+/* Laporan charts placeholder */
+.chart-placeholder{height:180px;background:var(--surf2);border-radius:8px;display:flex;align-items:flex-end;padding:16px 12px;gap:6px;overflow:hidden;}
+.bar-item{flex:1;background:var(--gold-s);border-radius:4px 4px 0 0;border:1px solid rgba(232,179,35,.2);position:relative;transition:background .15s;}
+.bar-item:hover{background:var(--gold-s);border-color:var(--gold);}
+.bar-item.hi{background:var(--gold);border-color:var(--gold-h);}
+.bar-label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--faint);font-family:'Geist Mono',monospace;white-space:nowrap;}
+
+/* Empty state */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px;gap:10px;}
+.empty-icon{font-size:36px;opacity:.3;}
+.empty-text{font-size:13px;color:var(--muted);text-align:center;}
+
+/* Penarikan balance card */
+.balance-card{background:var(--forest);border-radius:14px;padding:24px 28px;color:#fff;position:relative;overflow:hidden;}
+.balance-card::before{content:'';position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(232,179,35,.18) 0%,transparent 70%);}
+.balance-label{font-size:11px;font-weight:500;color:rgba(255,255,255,.45);letter-spacing:.05em;text-transform:uppercase;margin-bottom:8px;}
+.balance-amount{font-size:32px;font-weight:800;color:var(--gold);letter-spacing:-.04em;}
+.balance-sub{font-size:11.5px;color:rgba(255,255,255,.35);margin-top:6px;}
+
+/* Notification dot */
+.n-dot{width:7px;height:7px;border-radius:50%;background:var(--gold);border:1.5px solid var(--surf);position:absolute;top:7px;right:7px;}
+.notif-btn{position:relative;width:34px;height:34px;border-radius:8px;background:none;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;transition:background .15s;}
+.notif-btn:hover{background:var(--surf2);}
+
+/* Responsive tweaks for topbar */
+@media(max-width:1100px){.stats{grid-template-columns:repeat(2,1fr)}.g2{grid-template-columns:1fr}}
+
+/* Success toast */
+.toast{position:fixed;bottom:80px;right:24px;background:var(--forest);color:#fff;padding:12px 18px;border-radius:10px;font-size:12.5px;font-weight:500;display:flex;align-items:center;gap:8px;box-shadow:0 8px 28px rgba(15,26,15,.25);z-index:9999;transform:translateY(20px);opacity:0;transition:all .3s;pointer-events:none;}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast-dot{width:7px;height:7px;border-radius:50%;background:var(--gold);flex-shrink:0;}
+
+/* Tabungan summary */
+.tab-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);}
+.ts-c{background:var(--surf);padding:14px 18px;}
+.ts-v{font-size:17px;font-weight:800;letter-spacing:-.03em;color:var(--ink);}
+.ts-l{font-size:10.5px;color:var(--faint);margin-top:2px;}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════ LOGIN ══════════════════════════ -->
+<div id="login-screen">
+  <div class="login-left">
+    <div class="ll-inner">
+      <div class="ll-logo">
+        <div class="ll-icon">🌿</div>
+        <div class="ll-brand">
+          Bank Sampah Wadhah Wangi
+          <span>Sistem Pendataan Digital</span>
+        </div>
+      </div>
+      <div class="ll-heading">Kelola sampah,<br>bangun <em>masa depan.</em></div>
+      <div class="ll-sub">Platform pendataan terpadu untuk Bank Sampah Wadhah Wangi — catat setoran, kelola tabungan, dan pantau laporan bulanan dengan mudah.</div>
+      <div class="ll-stats">
+        <div><div class="ll-stat-val">142</div><div class="ll-stat-lbl">Nasabah aktif</div></div>
+        <div><div class="ll-stat-val">1.2t</div><div class="ll-stat-lbl">Sampah dikelola</div></div>
+        <div><div class="ll-stat-val">Rp 4,8jt</div><div class="ll-stat-lbl">Total tabungan</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="login-right">
+    <div class="lr-head">
+      <div class="lr-title">Masuk ke sistem</div>
+      <div class="lr-sub">Gunakan akun yang diberikan oleh admin bank sampah</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Username</label>
+      <input class="form-input" type="text" placeholder="Masukkan username" value="admin">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input class="form-input" type="password" placeholder="Masukkan password" value="••••••••">
+    </div>
+    <div class="form-row-check">
+      <label class="check-label"><input type="checkbox" checked> Ingat saya</label>
+      <a class="form-link">Lupa password?</a>
+    </div>
+    <button class="btn-login" onclick="doLogin()">Masuk →</button>
+    <div class="lr-divider">atau</div>
+    <div class="lr-footer">Butuh akses? Hubungi <strong>Admin Bank Sampah</strong></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ APP ══════════════════════════ -->
+<div id="app" class="hidden">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <div class="sb-icon">🌿</div>
+      <div><div class="sb-name">Wadhah Wangi</div><div class="sb-tag">Bank Sampah</div></div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sb-sec">Utama</div>
+      <div class="sb-item active" data-page="dashboard"><span class="ic">▦</span> Dashboard</div>
+      <div class="sb-item" data-page="nasabah"><span class="ic">👥</span> Nasabah <span class="sb-pill">142</span></div>
+      <div class="sb-item" data-page="transaksi"><span class="ic">📋</span> Transaksi Setor</div>
+      <div class="sb-item" data-page="jenis"><span class="ic">♻️</span> Jenis Sampah</div>
+      <div class="sb-sec">Keuangan</div>
+      <div class="sb-item" data-page="tabungan"><span class="ic">💰</span> Tabungan</div>
+      <div class="sb-item" data-page="penarikan"><span class="ic">↑</span> Penarikan</div>
+      <div class="sb-item" data-page="harga"><span class="ic">🏷</span> Harga Sampah</div>
+      <div class="sb-sec">Laporan</div>
+      <div class="sb-item" data-page="laporan"><span class="ic">📄</span> Laporan Bulanan</div>
+      <div class="sb-item" data-page="pengaturan"><span class="ic">⚙</span> Pengaturan</div>
+    </nav>
+    <div class="sb-footer">
+      <div class="sb-av">AS</div>
+      <div><div class="sb-un">Admin Sistem</div><div class="sb-ur">Pengelola Bank</div></div>
+      <div class="sb-logout" onclick="doLogout()" title="Keluar">⏻</div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <span class="tb-title" id="tb-title">Dashboard <span class="tb-sub">/ Ringkasan Operasional</span></span>
+      <div class="search"><span class="s-ic">⌕</span><input type="text" placeholder="Cari…"></div>
+      <button class="btn btn-ghost">↓ Ekspor</button>
+      <div class="notif-btn">🔔<span class="n-dot"></span></div>
+      <button class="btn btn-gold" id="fab-topbar" onclick="openModal()">+ Tambah</button>
+    </div>
+
+    <!-- ─── PAGE: DASHBOARD ─── -->
+    <div class="page" id="page-dashboard">
+      <div class="ph2">
+        <div class="ph2-l"><div class="pt">Ringkasan <span>Operasional</span></div><div class="ps">Periode Februari 2025 · Diperbarui 24 Feb 2025, 09:14 WIB</div></div>
+        <div class="ph2-r">
+          <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);background:var(--surf);border:1px solid var(--line);padding:5px 10px;border-radius:6px;"><span style="width:6px;height:6px;border-radius:50%;background:var(--gold);display:inline-block"></span>Jadwal Sabtu 08.00–12.00</div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat hl">
+          <div class="stat-top"><div class="si si-w">⚖</div><span class="trend t-uw">↑ 12%</span></div>
+          <div class="stat-num">1.247 kg</div><div class="stat-lbl">Total Sampah Bulan Ini</div>
+        </div>
+        <div class="stat">
+          <div class="stat-top"><div class="si si-g">👥</div><span class="trend t-up">↑ 8 baru</span></div>
+          <div class="stat-num">142</div><div class="stat-lbl">Nasabah Aktif</div>
+        </div>
+        <div class="stat">
+          <div class="stat-top"><div class="si si-gr">💵</div><span class="trend t-up">↑ 14%</span></div>
+          <div class="stat-num">Rp 4,8jt</div><div class="stat-lbl">Total Tabungan</div>
+        </div>
+        <div class="stat">
+          <div class="stat-top"><div class="si si-a">📋</div><span class="trend t-up">↑ 18</span></div>
+          <div class="stat-num">238</div><div class="stat-lbl">Transaksi Bulan Ini</div>
+        </div>
+      </div>
+      <div class="g2">
+        <div class="panel">
+          <div class="panel-head">
+            <div><div class="panel-title">Setoran Terbaru</div><div class="panel-sub">6 dari 238 transaksi</div></div>
+            <span class="panel-link" onclick="navigate('transaksi')">Lihat semua →</span>
+          </div>
+          <div class="tabs"><div class="tab on">Semua</div><div class="tab">Terverifikasi</div><div class="tab">Proses</div><div class="tab">Ditolak</div></div>
+          <div class="tw">
+            <table>
+              <thead><tr><th>Nasabah</th><th>Jenis</th><th>Berat</th><th>Poin</th><th>Status</th><th>Tgl</th></tr></thead>
+              <tbody>
+                <tr><td><div class="tdm"><div class="av">SR</div><div><div class="mn">Siti Rahayu</div><div class="mid">BSW-0041</div></div></div></td><td style="color:var(--muted)">Plastik</td><td><span class="mono tw-c">3,5 kg</span></td><td><span class="mono tp-c">350</span></td><td><span class="badge b-g">Terverifikasi</span></td><td><span class="td-d">24 Feb</span></td></tr>
+                <tr><td><div class="tdm"><div class="av">BW</div><div><div class="mn">Budi Wahyono</div><div class="mid">BSW-0027</div></div></div></td><td style="color:var(--muted)">Kertas</td><td><span class="mono tw-c">7,2 kg</span></td><td><span class="mono tp-c">504</span></td><td><span class="badge b-g">Terverifikasi</span></td><td><span class="td-d">24 Feb</span></td></tr>
+                <tr><td><div class="tdm"><div class="av">MA</div><div><div class="mn">Murti Astuti</div><div class="mid">BSW-0088</div></div></div></td><td style="color:var(--muted)">Logam</td><td><span class="mono tw-c">2,0 kg</span></td><td><span class="mono tp-c">600</span></td><td><span class="badge b-y">Proses</span></td><td><span class="td-d">24 Feb</span></td></tr>
+                <tr><td><div class="tdm"><div class="av">DH</div><div><div class="mn">Dewi Hapsari</div><div class="mid">BSW-0013</div></div></div></td><td style="color:var(--muted)">Kaca</td><td><span class="mono tw-c">5,5 kg</span></td><td><span class="mono tp-c">275</span></td><td><span class="badge b-g">Terverifikasi</span></td><td><span class="td-d">23 Feb</span></td></tr>
+                <tr><td><div class="tdm"><div class="av">RS</div><div><div class="mn">Rudi Santoso</div><div class="mid">BSW-0109</div></div></div></td><td style="color:var(--muted)">Elektronik</td><td><span class="mono tw-c">1,8 kg</span></td><td><span class="mono tp-c">720</span></td><td><span class="badge b-y">Proses</span></td><td><span class="td-d">23 Feb</span></td></tr>
+                <tr><td><div class="tdm"><div class="av">PN</div><div><div class="mn">Putri Ningrum</div><div class="mid">BSW-0076</div></div></div></td><td style="color:var(--muted)">Plastik</td><td><span class="mono tw-c">4,1 kg</span></td><td><span class="mono tp-c">410</span></td><td><span class="badge b-r">Ditolak</span></td><td><span class="td-d">22 Feb</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="panel">
+            <div class="panel-head"><div><div class="panel-title">Komposisi Sampah</div><div class="panel-sub">Berat bulan ini</div></div></div>
+            <div class="wl">
+              <div class="wr"><div class="wm"><span class="wn"><span class="wd" style="background:#4a90d9"></span>Plastik</span><span class="wv">412 kg<span class="wp">33%</span></span></div><div class="bt"><div class="bf" style="width:33%;background:#4a90d9"></div></div></div>
+              <div class="wr"><div class="wm"><span class="wn"><span class="wd" style="background:#e8b323"></span>Kertas</span><span class="wv">337 kg<span class="wp">27%</span></span></div><div class="bt"><div class="bf" style="width:27%;background:#e8b323"></div></div></div>
+              <div class="wr"><div class="wm"><span class="wn"><span class="wd" style="background:#3d6b40"></span>Logam</span><span class="wv">236 kg<span class="wp">19%</span></span></div><div class="bt"><div class="bf" style="width:19%;background:#3d6b40"></div></div></div>
+              <div class="wr"><div class="wm"><span class="wn"><span class="wd" style="background:#7a5c2e"></span>Kaca</span><span class="wv">174 kg<span class="wp">14%</span></span></div><div class="bt"><div class="bf" style="width:14%;background:#7a5c2e"></div></div></div>
+              <div class="wr"><div class="wm"><span class="wn"><span class="wd" style="background:#b06030"></span>Elektronik</span><span class="wv">88 kg<span class="wp">7%</span></span></div><div class="bt"><div class="bf" style="width:7%;background:#b06030"></div></div></div>
+            </div>
+            <div class="ms"><div class="ms-c"><div class="ms-v">1.247</div><div class="ms-l">Total kg</div></div><div class="ms-c"><div class="ms-v">5</div><div class="ms-l">Kategori</div></div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">Aktivitas Terkini</div></div>
+            <div class="al">
+              <div class="ai"><div class="adot"></div><div><div class="at"><strong>Siti Rahayu</strong> setor 3,5 kg plastik</div><div class="atime">09:14 WIB</div></div></div>
+              <div class="ai"><div class="adot"></div><div><div class="at"><strong>Budi W.</strong> tarik Rp 50.000</div><div class="atime">08:52 WIB</div></div></div>
+              <div class="ai"><div class="adot"></div><div><div class="at">Nasabah baru <strong>Hani Lestari</strong></div><div class="atime">08:30 WIB</div></div></div>
+              <div class="ai"><div class="adot"></div><div><div class="at">Harga <strong>logam</strong> → Rp 3.000/kg</div><div class="atime">07:00 WIB</div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── PAGE: NASABAH ─── -->
+    <div class="page hidden" id="page-nasabah">
+      <div class="ph2">
+        <div class="ph2-l"><div class="pt">Data <span>Nasabah</span></div><div class="ps">142 nasabah terdaftar · Februari 2025</div></div>
+        <div class="ph2-r"><button class="btn btn-ghost">↓ Ekspor</button><button class="btn btn-gold" onclick="openModal()">+ Nasabah Baru</button></div>
+      </div>
+      <div class="stats">
+        <div class="stat hl"><div class="stat-top"><div class="si si-w">👥</div><span class="trend t-uw">+8</span></div><div class="stat-num">142</div><div class="stat-lbl">Total Nasabah</div></div>
+        <div class="stat"><div class="stat-top"><div class="si si-g">✅</div><span class="trend t-up">92%</span></div><div class="stat-num">131</div><div class="stat-lbl">Nasabah Aktif</div></div>
+        <div class="stat"><div class="stat-top"><div class="si si-a">🆕</div><span class="trend t-up">↑ 4</span></div><div class="stat-num">8</div><div class="stat-lbl">Baru Bulan Ini</div></div>
+        <div class="stat"><div class="stat-top"><div class="si si-gr">💰</div><span class="trend t-up">avg</span></div><div class="stat-num">Rp 33rb</div><div class="stat-lbl">Rata-rata Tabungan</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">Daftar Nasabah</div></div>
+          <div style="display:flex;gap:8px"><select class="fi" style="width:auto;padding:5px 10px;font-size:12px"><option>Semua Status</option><option>Aktif</option><option>Tidak Aktif</option></select></div>
+        </div>
+        <div class="tabs"><div class="tab on">Semua (142)</div><div class="tab">Aktif (131)</div><div class="tab">Tidak Aktif (11)</div></div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>Nasabah</th><th>No. KTP</th><th>Alamat</th><th>Bergabung</th><th>Tabungan</th><th>Status</th><th>Aksi</th></tr></thead>
+            <tbody>
+              <tr><td><div class="tdm"><div class="av">SR</div><div><div class="mn">Siti Rahayu</div><div class="mid">BSW-0041</div></div></div></td><td><span class="mono" style="font-size:11px">3273xxxxxxxxxxxx</span></td><td style="font-size:11.5px;color:var(--muted)">Jl. Melati No. 12, RT 03</td><td><span class="td-d">Jan 2023</span></td><td><span class="mono tp-c">Rp 87.500</span></td><td><span class="badge b-g">Aktif</span></td><td><div class="td-act"><button class="btn btn-sm btn-ghost">Edit</button><button class="btn btn-sm btn-ghost">Detail</button></div></td></tr>
+              <tr><td><div class="tdm"><div class="av">BW</div><div><div class="mn">Budi Wahyono</div><div class="mid">BSW-0027</div></div></div></td><td><span class="mono" style="font-size:11px">3273xxxxxxxxxxxx</span></td><td style="font-size:11.5px;color:var(--muted)">Jl. Mawar No. 5, RT 01</td><td><span class="td-d">Nov 2022</span></td><td><span class="mono tp-c">Rp 124.000</span></td><td><span class="badge b-g">Aktif</span></td><td><div class="td-act"><button class="btn btn-sm btn-ghost">Edit</button><button class="btn btn-sm btn-ghost">Detail</button></div></td></tr>
+              <tr><td><div class="tdm"><div class="av">MA</div><div><div class="mn">Murti Astuti</div><div class="mid">BSW-0088</div></div></div></td><td><span class="mono" style="font-size:11px">3273xxxxxxxxxxxx</span></td><td style="font-size:11.5px;color:var(--muted)">Jl. Anggrek No. 8, RT 07</td><td><span class="td-d">Mar 2024</span></td><td><span class="mono tp-c">Rp 42.000</span></td><td><span class="badge b-g">Aktif</span></td><td><div class="td-act"><button class="btn btn-sm btn-ghost">Edit</button><button class="btn btn-sm btn-ghost">Detail</button></div></td></tr>
+              <tr><td><div class="tdm"><div class="av">DH</div><div><div class="mn">Dewi Hapsari</div><div class="mid">BSW-0013</div></div></div></td><td><span class="mono" style="font-size:11px">3273xxxxxxxxxxxx</span></td><td style="font-size:11.5px;color:var(--muted)">Jl. Kenanga No. 3, RT 04</td><td><span class="td-d">Aug 2022</span></td><td><span class="mono tp-c">Rp 215.000</span></td><td><span class="badge b-g">Aktif</span></td><td><div class="td-act"><button class="btn btn-sm btn-ghost">Edit</button><button class="btn btn-sm btn-ghost">Detail</button></div></td></tr>
+              <tr><td><div class="tdm"><div class="av" style="background:var(--red-s);border-color:rgba(200,60,60,.2);color:var(--red)">PN</div><div><div class="mn">Putri Ningrum</div><div class="mid">BSW-0076</div></div></div></td><td><span class="mono" style="font-size:11px">3273xxxxxxxxxxxx</span></td><td style="font-size:11.5px;color:var(--muted)">Jl. Dahlia No. 19, RT 02</td><td><span class="td-d">Jun 2023</span></td><td><span class="mono" style="color:var(--muted)">Rp 0</span></td><td><span class="badge b-r">Tidak Aktif</span></td><td><div class="td-act"><button class="btn btn-sm btn-ghost">Edit</button><button class="btn btn-sm btn-ghost">Detail</button></div></td></tr>
+              <tr><td><div class="tdm"><div class="av av-g">HL</div><div><div class="mn">Hani Lestari</div><div class="mid">BSW-0142</div></div></div></td><td><span class="mono" style="font-size:11px">3273xxxxxxxxxxxx</span></td><td style="font-size:11.5px;color:var(--muted)">Jl. Tulip No. 7, RT 05</td><td><span class="td-d">Feb 2025</span></td><td><span class="mono" style="color:var(--muted)">Rp 0</span></td><td><span class="badge b-b">Baru</span></td><td><div class="td-act"><button class="btn btn-sm btn-ghost">Edit</button><button class="btn btn-sm btn-ghost">Detail</button></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="padding:12px 20px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--line)">
+          <span style="font-size:11.5px;color:var(--muted)">Menampilkan 6 dari 142 nasabah</span>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm">← Prev</button>
+            <button class="btn btn-gold btn-sm">Next →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── PAGE: TRANSAKSI ─── -->
+    <div class="page hidden" id="page-transaksi">
+      <div class="ph2">
+        <div class="ph2-l"><div class="pt">Transaksi <span>Setor</span></div><div class="ps">238 transaksi bulan ini</div></div>
+        <div class="ph2-r">
+          <input class="fi" type="month" value="2025-02" style="width:auto;padding:6px 10px;font-size:12px">
+          <button class="btn btn-ghost">↓ Ekspor</button>
+          <button class="btn btn-gold" onclick="openModal()">+ Setoran Baru</button>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat hl"><div class="stat-top"><div class="si si-w">📋</div><span class="trend t-uw">+18</span></div><div class="stat-num">238</div><div class="stat-lbl">Total Transaksi</div></div>
+        <div class="stat"><div class="stat-top"><div class="si si-g">✅</div><span class="trend t-up">84%</span></div><div class="stat-num">200</div><div class="stat-lbl">Terverifikasi</div></div>
+        <div class="stat"><div class="stat-top"><div class="si si-a">⏳</div></div><div class="stat-num">30</div><div class="stat-lbl">Menunggu Proses</div></div>
+        <div class="stat"><div class="stat-top"><div class="si si-gr">⚖</div><span class="trend t-up">↑ 12%</span></div><div class="stat-num">1.247 kg</div><div class="stat-lbl">Total Berat</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">Semua Transaksi</div></div>
+        <div class="tabs"><div class="tab on">Semua</div><div class="tab">Terverifikasi</div><div class="tab">Proses</div><div class="tab">Ditolak</div></div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>ID Transaksi</th><th>Nasabah</th><th>Jenis Sampah</th><th>Berat</th><th>Nilai (Rp)</th><th>Poin</th><th>Status</th><th>Tanggal</th><th>Aksi</th></tr></thead>
+            <tbody>
+              <tr><td><span class="mono" style="font-size:11px;color:var(--faint)">#TRX-2502-238</span></td><td><div class="tdm"><div class="av">SR</div><div><div class="mn">Siti Rahayu</div></div></div></td><td style="color:var(--muted)">Plastik</td><td><span class="mono tw-c">3,5 kg</span></td><td><span class="mono">Rp 5.250</span></td><td><span class="mono tp-c">350</span></td><td><span class="badge b-g">Terverifikasi</span></td><td><span class="td-d">24 Feb 25</span></td><td><button class="btn btn-sm btn-ghost">Detail</button></td></tr>
+              <tr><td><span class="mono" style="font-size:11px;color:var(--faint)">#TRX-2502-237</span></td><td><div class="tdm"><div class="av">BW</div><div><div class="mn">Budi Wahyono</div></div></div></td><td style="color:var(--muted)">Kertas</td><td><span class="mono tw-c">7,2 kg</span></td><td><span class="mono">Rp 7.200</span></td><td><span class="mono tp-c">504</span></td><td><span class="badge b-g">Terverifikasi</span></td><td><span class="td-d">24 Feb 25</span></td><td><button class="btn btn-sm btn-ghost">Detail</button></td></tr>
+              <tr><td><span class="mono" style="font-size:11px;color:var(--faint)">#TRX-2502-236</span></td><td><div class="tdm"><div class="av">MA</div><div><div class="mn">Murti Astuti</div></div></div></td><td style="color:var(--muted)">Logam</td><td><span class="mono tw-c">2,0 kg</span></td><td><span class="mono">Rp 6.000</span></td><td><span class="mono tp-c">600</span></td><td><span class="badge b-y">Proses</span></td><td><span class="td-d">24 Feb 25</span></td><td><div class="td-act"><button class="btn btn-sm btn-gold">✓ Verifikasi</button></div></td></tr>
+              <tr><td><span class="mono" style="font-size:11px;color:var(--faint)">#TRX-2502-235</span></td><td><div class="tdm"><div class="av">DH</div><div><div class="mn">Dewi Hapsari</div></div></div></td><td style="color:var(--muted)">Kaca</td><td><span class="mono tw-c">5,5 kg</span></td><td><span class="mono">Rp 2.750</span></td><td><span class="mono tp-c">275</span></td><td><span class="badge b-g">Terverifikasi</span></td><td><span class="td-d">23 Feb 25</span></td><td><button class="btn btn-sm btn-ghost">Detail</button></td></tr>
+              <tr><td><span class="mono" style="font-size:11px;color:var(--faint)">#TRX-2502-234</span></td><td><div class="tdm"><div class="av">RS</div><div><div class="mn">Rudi Santoso</div></div></div></td><td style="color:var(--muted)">Elektronik</td><td><span class="mono tw-c">1,8 kg</span></td><td><span class="mono">Rp 7.200</span></td><td><span class="mono tp-c">720</span></td><td><span class="badge b-y">Proses</span></td><td><span class="td-d">23 Feb 25</span></td><td><div class="td-act"><button class="btn btn-sm btn-gold">✓ Verifikasi</button></div></td></tr>
+              <tr><td><span class="mono" style="font-size:11px;color:var(--faint)">#TRX-2502-233</span></td><td><div class="tdm"><div class="av">PN</div><div><div class="mn">Putri Ningrum</div></div></div></td><td style="color:var(--muted)">Plastik</td><td><span class="mono tw-c">4,1 kg</span></td><td><span class="mono">Rp 6.150</span></td><td><span class="mono tp-c">410</span></td><td><span class="badge b-r">Ditolak</span></td><td><span class="td-d">22 Feb 25</span></td><td><button class="btn btn-sm btn-ghost">Detail</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── PAGE: JENIS SAMPAH ─── -->
+    <div class="page hidden" id="page-jenis">
+      <div class="ph2">
+        <div class="ph2-l"><div class="pt">Jenis <span>Sampah</span></div><div class="ps">5 kategori aktif terdaftar</div></div>
+        <div class="ph2-r"><button class="btn btn-gold" onclick="openModal()">+ Tambah Jenis</button></div>
+      </div>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-icon" style="background:#e8f4fd">♻️</div>
+          <div class="card-name">Plastik</div>
+          <div class="card-price">Rp 1.500 / kg</div>
+          <div class="card-meta">Termasuk: botol PET, kantong, wadah plastik keras</div>
+          <div class="card-footer">
+            <div><div style="font-size:10px;color:var(--faint)">Disetor bulan ini</div><div style="font-size:14px;font-weight:700;color:var(--ink)">412 kg</div></div>
+            <div style="display:flex;gap:6px"><button class="btn btn-sm btn-ghost">Edit</button></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background:#fdf8e8">📰</div>
+          <div class="card-name">Kertas</div>
+          <div class="card-price">Rp 1.000 / kg</div>
+          <div class="card-meta">Termasuk: koran, karton, kertas HVS, dus</div>
+          <div class="card-footer">
+            <div><div style="font-size:10px;color:var(--faint)">Disetor bulan ini</div><div style="font-size:14px;font-weight:700;color:var(--ink)">337 kg</div></div>
+            <div style="display:flex;gap:6px"><button class="btn btn-sm btn-ghost">Edit</button></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background:#f0f5f0">🔩</div>
+          <div class="card-name">Logam</div>
+          <div class="card-price">Rp 3.000 / kg</div>
+          <div class="card-meta">Termasuk: besi, aluminium, tembaga, kaleng</div>
+          <div class="card-footer">
+            <div><div style="font-size:10px;color:var(--faint)">Disetor bulan ini</div><div style="font-size:14px;font-weight:700;color:var(--ink)">236 kg</div></div>
+            <div style="display:flex;gap:6px"><button class="btn btn-sm btn-ghost">Edit</button></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background:#e8f5f0">🍶</div>
+          <div class="card-name">Kaca</div>
+          <div class="card-price">Rp 500 / kg</div>
+          <div class="card-meta">Termasuk: botol kaca, pecahan kaca</div>
+          <div class="card-footer">
+            <div><div style="font-size:10px;color:var(--faint)">Disetor bulan ini</div><div style="font-size:14px;font-weight:700;color:var(--ink)">174 kg</div></div>
+            <div style="display:flex;gap:6px"><button class="btn btn-sm btn-ghost">Edit</button></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background:#f5eee8">💻</div>
+          <div class="card-name">Elektronik</div>
+          <div class="card-price">Rp 4.000 / kg</div>
+          <div class="card-meta">Termasuk: HP rusak, PCB, kabel, baterai</div>
+          <div class="card-footer">
+            <div><div style="font-size:10px;color:var(--faint)">Disetor bulan ini</div><div style="font-size:14px;font-weight:700;color:var(--ink)">88 kg</div></div>
+            <div style="display:flex;gap:6px"><button class="btn btn-sm btn-ghost">Edit</button></div>
+          </div>
+        </div>
+        <div class="card" style="border-style:dashed;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--surf2);cursor:pointer;" onclick="openModal()">
+          <div style="font-size:28px;opacity:.3;margin-bottom:10px">+</div>
+          <div style="font-size:13px;color:var(--muted);font-weight:500">Tambah Jenis Sampah</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── PAGE: TABUNGAN ─── -->
+    <div class="page hidden" id="page-tabungan">
+      <div class="ph2">
+        <div class="ph2-l"><div class="pt">Tabungan <span>Nasabah</span></div><div class="ps">Saldo aktif 142 nasabah</div></div>
+        <div class="ph2-r"><button class="btn btn-ghost">↓ Laporan</button></div>
+      </div>
+      <div class="stats">
+        <div class="stat hl"><div class="stat-top"><div class="si si-w">💰</div><span class="trend t-uw">↑ 14%</span></div><div class="stat-num">Rp 4,8jt</div><div class="stat-lbl">Total Tabungan</div></div>
+        <div class="stat"><div class="stat-top"><div class="si si-g">📊</div></div><div class="stat-num">Rp 33rb</div><div class="stat-lbl">Rata-rata / Nasabah</div></div>
+        <div class="stat"><div class="stat-top"><div class="si si-a">⭐</div></div><div class="stat-num">Rp 215rb</div><div class="stat-lbl">Tabungan Tertinggi</div></div>
+        <div class="stat"><div class="stat-top"><div class="si si-gr">📅</div><span class="trend t-up">bulan ini</span></div><div class="stat-num">Rp 620rb</div><div class="stat-lbl">Total Masuk</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><div class="panel-title">Rekening Tabungan</div><div class="panel-sub">Saldo dan riwayat per nasabah</div></div></div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>Nasabah</th><th>No. Rekening</th><th>Saldo</th><th>Masuk Bulan Ini</th><th>Keluar Bulan Ini</th><th>Tgl Update</th><th>Aksi</th></tr></thead>
+            <tbody>
+              <tr><td><div class="tdm"><div class="av">DH</div><div><div class="mn">Dewi Hapsari</div><div class="mid">BSW-0013</div></div></div></td><td><span class="mono" style="font-size:11px">TAB-0013-25</span></td><td><span class="mono tp-c">Rp 215.000</span></td><td><span class="mono tw-c">+ Rp 52.750</span></td><td><span class="mono" style="color:var(--red)">- Rp 0</span></td><td><span class="td-d">24 Feb 25</span></td><td><button class="btn btn-sm btn-ghost">Riwayat</button></td></tr>
+              <tr><td><div class="tdm"><div class="av">BW</div><div><div class="mn">Budi Wahyono</div><div class="mid">BSW-0027</div></div></div></td><td><span class="mono" style="font-size:11px">TAB-0027-25</span></td><td><span class="mono tp-c">Rp 124.000</span></td><td><span class="mono tw-c">+ Rp 74.200</span></td><td><span class="mono" style="color:var(--red)">- Rp 50.000</span></td><td><span class="td-d">24 Feb 25</span></td><td><button class="btn btn-sm btn-ghost">Riwayat</button></td></tr>
+              <tr><td><div class="tdm"><div class="av">SR</div><div><div class="mn">Siti Rahayu</div><div class="mid">BSW-0041</div></div></div></td><td><span class="mono" style="font-size:11px">TAB-0041-25</span></td><td><span class="mono tp-c">Rp 87.500</span></td><td><span class="mono tw-c">+ Rp 35.500</span></td><td><span class="mono" style="color:var(--red)">- Rp 0</span></td><td><span class="td-d">24 Feb 25</span></td><td><button class="btn btn-sm btn-ghost">Riwayat</button></td></tr>
+              <tr><td><div class="tdm"><div class="av">PN</div><div><div class="mn">Putri Ningrum</div><div class="mid">BSW-0076</div></div></div></td><td><span class="mono" style="font-size:11px">TAB-0076-25</span></td><td><span class="mono" style="color:var(--muted)">Rp 0</span></td><td><span class="mono" style="color:var(--muted)">-</span></td><td><span class="mono" style="color:var(--muted)">-</span></td><td><span class="td-d">22 Feb 25</span></td><td><button class="btn btn-sm btn-ghost">Riwayat</button></td></tr>
+              <tr><td><div class="tdm"><div class="av">MA</div><div><div class="mn">Murti Astuti</div><div class="mid">BSW-0088</div></div></div></td><td><span class="mono" style="font-size:11px">TAB-0088-25</span></td><td><span class="mono tp-c">Rp 42.000</span></td><td><span class="mono tw-c">+ Rp 42.000</span></td><td><span class="mono" style="color:var(--red)">- Rp 0</span></td><td><span class="td-d">24 Feb 25</span></td><td><button class="btn btn-sm btn-ghost">Riwayat</button></td></tr>
+              <tr><td><div class="tdm"><div class="av">RS</div><div><div class="mn">Rudi Santoso</div><div class="mid">BSW-0109</div></div></div></td><td><span class="mono" style="font-size:11px">TAB-0109-25</span></td><td><span class="mono tp-c">Rp 57.000</span></td><td><span class="mono tw-c">+ Rp 57.000</span></td><td><span class="mono" style="color:var(--red)">- Rp 0</span></td><td><span class="td-d">23 Feb 25</span></td><td><button class="btn btn-sm btn-ghost">Riwayat</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── PAGE: PENARIKAN ─── -->
+    <div class="page hidden" id="page-penarikan">
+      <div class="ph2">
+        <div class="ph2-l"><div class="pt">Penarikan <span>Saldo</span></div><div class="ps">Kelola permintaan penarikan nasabah</div></div>
+        <div class="ph2-r"><button class="btn btn-gold" onclick="openModal()">+ Penarikan Baru</button></div>
+      </div>
+      <div class="g2" style="grid-template-columns:1fr 280px">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+            <div class="stat hl"><div class="stat-top"><div class="si si-w">↑</div><span class="trend t-uw">bulan ini</span></div><div class="stat-num">Rp 620rb</div><div class="stat-lbl">Total Dicairkan</div></div>
+            <div class="stat"><div class="stat-top"><div class="si si-a">⏳</div></div><div class="stat-num">5</div><div class="stat-lbl">Menunggu Proses</div></div>
+            <div class="stat"><div class="stat-top"><div class="si si-g">✅</div></div><div class="stat-num">28</div><div class="stat-lbl">Selesai Bulan Ini</div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">Permintaan Penarikan</div></div>
+            <div class="tabs"><div class="tab on">Semua</div><div class="tab">Menunggu (5)</div><div class="tab">Selesai</div></div>
+            <div class="tw">
+              <table>
+                <thead><tr><th>Nasabah</th><th>Nominal</th><th>Saldo Sisa</th><th>Metode</th><th>Status</th><th>Tgl Req</th><th>Aksi</th></tr></thead>
+                <tbody>
+                  <tr><td><div class="tdm"><div class="av">BW</div><div><div class="mn">Budi Wahyono</div></div></div></td><td><span class="mono" style="font-weight:700;color:var(--ink)">Rp 50.000</span></td><td><span class="mono tw-c">Rp 74.000</span></td><td style="font-size:12px;color:var(--muted)">Tunai</td><td><span class="badge b-g">Selesai</span></td><td><span class="td-d">24 Feb</span></td><td><button class="btn btn-sm btn-ghost">Cetak</button></td></tr>
+                  <tr><td><div class="tdm"><div class="av">SR</div><div><div class="mn">Siti Rahayu</div></div></div></td><td><span class="mono" style="font-weight:700;color:var(--ink)">Rp 30.000</span></td><td><span class="mono tw-c">Rp 57.500</span></td><td style="font-size:12px;color:var(--muted)">Transfer</td><td><span class="badge b-y">Menunggu</span></td><td><span class="td-d">24 Feb</span></td><td><div class="td-act"><button class="btn btn-sm btn-gold">✓ Proses</button></div></td></tr>
+                  <tr><td><div class="tdm"><div class="av">MA</div><div><div class="mn">Murti Astuti</div></div></div></td><td><span class="mono" style="font-weight:700;color:var(--ink)">Rp 20.000</span></td><td><span class="mono tw-c">Rp 22.000</span></td><td style="font-size:12px;color:var(--muted)">Tunai</td><td><span class="badge b-y">Menunggu</span></td><td><span class="td-d">23 Feb</span></td><td><div class="td-act"><button class="btn btn-sm btn-gold">✓ Proses</button></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="balance-card">
+            <div class="balance-label">Total Saldo Nasabah</div>
+            <div class="balance-amount">Rp 4.837.500</div>
+            <div class="balance-sub">142 rekening aktif · Per 24 Feb 2025</div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">Syarat Penarikan</div></div>
+            <div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px">
+              <div style="font-size:12.5px;color:var(--muted);line-height:1.6">
+                <div style="display:flex;gap:8px;margin-bottom:8px;"><span style="color:var(--gold);font-weight:700">•</span><span>Minimum penarikan <strong style="color:var(--ink)">Rp 10.000</strong></span></div>
+                <div style="display:flex;gap:8px;margin-bottom:8px;"><span style="color:var(--gold);font-weight:700">•</span><span>Penarikan hanya pada hari <strong style="color:var(--ink)">Sabtu</strong></span></div>
+                <div style="display:flex;gap:8px;margin-bottom:8px;"><span style="color:var(--gold);font-weight:700">•</span><span>Bawa <strong style="color:var(--ink)">buku tabungan</strong> & KTP</span></div>
+                <div style="display:flex;gap:8px;"><span style="color:var(--gold);font-weight:700">•</span><span>Transfer via BCA/BNI/Mandiri</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── PAGE: HARGA SAMPAH ─── -->
+    <div class="page hidden" id="page-harga">
+      <div class="ph2">
+        <div class="ph2-l"><div class="pt">Harga <span>Sampah</span></div><div class="ps">Daftar harga beli per kategori · Diperbarui 24 Feb 2025</div></div>
+        <div class="ph2-r"><button class="btn btn-ghost">📋 Riwayat Harga</button><button class="btn btn-gold" onclick="openModal()">✏ Update Harga</button></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">Tabel Harga Berlaku</div><div class="panel-sub">Harga per kilogram</div></div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>Jenis Sampah</th><th>Harga / kg</th><th>Poin / kg</th><th>Min. Setor</th><th>Berlaku Sejak</th><th>Diperbarui Oleh</th><th>Aksi</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><div class="tdm"><div class="av" style="background:#e8f4fd;border-color:#bdd7f0;color:#2563a8">♻</div><div><div class="mn">Plastik</div><div class="mid">Botol PET, kantong, hdpe</div></div></div></td>
+                <td><span class="price-big">Rp 1.500<span class="price-unit">/kg</span></span></td>
+                <td><span class="mono tp-c">100 pts</span></td>
+                <td style="font-size:12px;color:var(--muted)">0,5 kg</td>
+                <td><span class="td-d">01 Feb 2025</span></td>
+                <td style="font-size:12px;color:var(--muted)">Admin Sistem</td>
+                <td><button class="btn btn-sm btn-ghost">Edit</button></td>
+              </tr>
+              <tr>
+                <td><div class="tdm"><div class="av" style="background:#fdf8e8;border-color:#e8d89a;color:#9a6800">📰</div><div><div class="mn">Kertas</div><div class="mid">Koran, karton, HVS, dus</div></div></div></td>
+                <td><span class="price-big">Rp 1.000<span class="price-unit">/kg</span></span></td>
+                <td><span class="mono tp-c">70 pts</span></td>
+                <td style="font-size:12px;color:var(--muted)">1 kg</td>
+                <td><span class="td-d">01 Feb 2025</span></td>
+                <td style="font-size:12px;color:var(--muted)">Admin Sistem</td>
+                <td><button class="btn btn-sm btn-ghost">Edit</button></td>
+              </tr>
+              <tr>
+                <td><div class="tdm"><div class="av" style="background:#f0f5f0;border-color:#9fc4a0;color:#3d6b40">🔩</div><div><div class="mn">Logam</div><div class="mid">Besi, aluminium, tembaga</div></div></div></td>
+                <td><span class="price-big">Rp 3.000<span class="price-unit">/kg</span></span></td>
+                <td><span class="mono tp-c">300 pts</span></td>
+                <td style="font-size:12px;color:var(--muted)">0,5 kg</td>
+                <td><span class="td-d">24 Feb 2025</span></td>
+                <td style="font-size:12px;color:var(--muted)">Admin Sistem</td>
+                <td><div style="display:flex;gap:6px"><button class="btn btn-sm btn-ghost">Edit</button><span class="badge b-g" style="font-size:9.5px">Baru diupdate</span></div></td>
+              </tr>
+              <tr>
+                <td><div class="tdm"><div class="av" style="background:#e8f5f0;border-color:#9fc4b0;color:#2d7a5e">🍶</div><div><div class="mn">Kaca</div><div class="mid">Botol kaca, pecahan</div></div></div></td>
+                <td><span class="price-big">Rp 500<span class="price-unit">/kg</span></span></td>
+                <td><span class="mono tp-c">50 pts</span></td>
+                <td style="font-size:12px;color:var(--muted)">2 kg</td>
+                <td><span class="td-d">01 Jan 2025</span></td>
+                <td style="font-size:12px;color:var(--muted)">Admin Sistem</td>
+                <td><button class="btn btn-sm btn-ghost">Edit</button></td>
+              </tr>
+              <tr>
+                <td><div class="tdm"><div class="av" style="background:#f5eee8;border-color:#d4b896;color:#7a5c2e">💻</div><div><div class="mn">Elektronik</div><div class="mid">HP, PCB, kabel, baterai</div></div></div></td>
+                <td><span class="price-big">Rp 4.000<span class="price-unit">/kg</span></span></td>
+                <td><span class="mono tp-c">400 pts</span></td>
+                <td style="font-size:12px;color:var(--muted)">0,1 kg</td>
+                <td><span class="td-d">01 Feb 2025</span></td>
+                <td style="font-size:12px;color:var(--muted)">Admin Sistem</td>
+                <td><button class="btn btn-sm btn-ghost">Edit</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">Riwayat Perubahan Harga</div></div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>Tanggal</th><th>Jenis</th><th>Harga Lama</th><th>Harga Baru</th><th>Selisih</th><th>Oleh</th></tr></thead>
+            <tbody>
+              <tr><td><span class="td-d">24 Feb 2025</span></td><td>Logam</td><td><span class="mono">Rp 2.500/kg</span></td><td><span class="mono tw-c">Rp 3.000/kg</span></td><td><span class="badge b-g">↑ +Rp 500</span></td><td style="font-size:12px;color:var(--muted)">Admin Sistem</td></tr>
+              <tr><td><span class="td-d">01 Feb 2025</span></td><td>Plastik</td><td><span class="mono">Rp 1.200/kg</span></td><td><span class="mono tw-c">Rp 1.500/kg</span></td><td><span class="badge b-g">↑ +Rp 300</span></td><td style="font-size:12px;color:var(--muted)">Admin Sistem</td></tr>
+              <tr><td><span class="td-d">01 Jan 2025</span></td><td>Kertas</td><td><span class="mono">Rp 1.200/kg</span></td><td><span class="mono" style="color:var(--red)">Rp 1.000/kg</span></td><td><span class="badge b-r">↓ -Rp 200</span></td><td style="font-size:12px;color:var(--muted)">Admin Sistem</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── PAGE: LAPORAN ─── -->
+    <div class="page hidden" id="page-laporan">
+      <div class="ph2">
+        <div class="ph2-l"><div class="pt">Laporan <span>Bulanan</span></div><div class="ps">Rekap operasional bank sampah</div></div>
+        <div class="ph2-r">
+          <select class="fi" style="width:auto;padding:6px 10px;font-size:12px"><option>Februari 2025</option><option>Januari 2025</option><option>Desember 2024</option></select>
+          <button class="btn btn-ghost">🖨 Cetak</button>
+          <button class="btn btn-gold">↓ Unduh PDF</button>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat hl"><div class="stat-top"><div class="si si-w">⚖</div><span class="trend t-uw">↑ 12%</span></div><div class="stat-num">1.247 kg</div><div class="stat-lbl">Total Sampah</div></div>
+        <div class="stat"><div class="stat-top"><div class="si si-g">💵</div><span class="trend t-up">↑ 14%</span></div><div class="stat-num">Rp 1,8jt</div><div class="stat-lbl">Total Nilai Sampah</div></div>
+        <div class="stat"><div class="stat-top"><div class="si si-a">↑</div></div><div class="stat-num">Rp 620rb</div><div class="stat-lbl">Total Penarikan</div></div>
+        <div class="stat"><div class="stat-top"><div class="si si-gr">📋</div></div><div class="stat-num">238</div><div class="stat-lbl">Total Transaksi</div></div>
+      </div>
+      <div class="g2" style="grid-template-columns:1fr 1fr">
+        <div class="panel">
+          <div class="panel-head"><div class="panel-title">Tren Berat Sampah (kg)</div><div class="panel-sub">6 bulan terakhir</div></div>
+          <div style="padding:16px 18px">
+            <div class="chart-placeholder">
+              <div class="bar-item" style="height:55%"><span class="bar-label">Sep</span></div>
+              <div class="bar-item" style="height:62%"><span class="bar-label">Okt</span></div>
+              <div class="bar-item" style="height:70%"><span class="bar-label">Nov</span></div>
+              <div class="bar-item" style="height:68%"><span class="bar-label">Des</span></div>
+              <div class="bar-item" style="height:78%"><span class="bar-label">Jan</span></div>
+              <div class="bar-item hi" style="height:88%"><span class="bar-label">Feb</span></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:24px;font-size:11px;color:var(--faint)">
+              <span>Maks: <strong style="color:var(--ink)">1.247 kg</strong> (Feb)</span>
+              <span>Min: <strong style="color:var(--ink)">842 kg</strong> (Sep)</span>
+              <span>Rata-rata: <strong style="color:var(--ink)">1.024 kg</strong></span>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div class="panel-title">Tren Nilai (Rp)</div><div class="panel-sub">6 bulan terakhir</div></div>
+          <div style="padding:16px 18px">
+            <div class="chart-placeholder">
+              <div class="bar-item" style="height:48%"><span class="bar-label">Sep</span></div>
+              <div class="bar-item" style="height:56%"><span class="bar-label">Okt</span></div>
+              <div class="bar-item" style="height:65%"><span class="bar-label">Nov</span></div>
+              <div class="bar-item" style="height:72%"><span class="bar-label">Des</span></div>
+              <div class="bar-item" style="height:80%"><span class="bar-label">Jan</span></div>
+              <div class="bar-item hi" style="height:92%"><span class="bar-label">Feb</span></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:24px;font-size:11px;color:var(--faint)">
+              <span>Maks: <strong style="color:var(--ink)">Rp 1,8jt</strong> (Feb)</span>
+              <span>Min: <strong style="color:var(--ink)">Rp 980rb</strong> (Sep)</span>
+              <span>Rata-rata: <strong style="color:var(--ink)">Rp 1,4jt</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">Rekap Per Jenis Sampah — Februari 2025</div></div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>Jenis</th><th>Jumlah Transaksi</th><th>Total Berat</th><th>Harga/kg</th><th>Total Nilai</th><th>% dari Total</th></tr></thead>
+            <tbody>
+              <tr><td><div class="tdm"><div class="av" style="background:#e8f4fd;border-color:#bdd7f0;color:#2563a8">♻</div><span class="mn">Plastik</span></div></td><td style="font-size:12.5px">94 transaksi</td><td><span class="mono tw-c">412 kg</span></td><td><span class="mono">Rp 1.500</span></td><td><span class="mono tp-c">Rp 618.000</span></td><td><div style="display:flex;align-items:center;gap:8px"><div class="bt" style="width:80px"><div class="bf" style="width:33%;background:#4a90d9"></div></div><span class="mono" style="font-size:11px">33%</span></div></td></tr>
+              <tr><td><div class="tdm"><div class="av" style="background:#fdf8e8;border-color:#e8d89a;color:#9a6800">📰</div><span class="mn">Kertas</span></div></td><td>72 transaksi</td><td><span class="mono tw-c">337 kg</span></td><td><span class="mono">Rp 1.000</span></td><td><span class="mono tp-c">Rp 337.000</span></td><td><div style="display:flex;align-items:center;gap:8px"><div class="bt" style="width:80px"><div class="bf" style="width:27%;background:#e8b323"></div></div><span class="mono" style="font-size:11px">27%</span></div></td></tr>
+              <tr><td><div class="tdm"><div class="av" style="background:#f0f5f0;border-color:#9fc4a0;color:#3d6b40">🔩</div><span class="mn">Logam</span></div></td><td>38 transaksi</td><td><span class="mono tw-c">236 kg</span></td><td><span class="mono">Rp 3.000</span></td><td><span class="mono tp-c">Rp 708.000</span></td><td><div style="display:flex;align-items:center;gap:8px"><div class="bt" style="width:80px"><div class="bf" style="width:19%;background:#3d6b40"></div></div><span class="mono" style="font-size:11px">19%</span></div></td></tr>
+              <tr><td><div class="tdm"><div class="av" style="background:#e8f5f0;border-color:#9fc4b0;color:#2d7a5e">🍶</div><span class="mn">Kaca</span></div></td><td>24 transaksi</td><td><span class="mono tw-c">174 kg</span></td><td><span class="mono">Rp 500</span></td><td><span class="mono tp-c">Rp 87.000</span></td><td><div style="display:flex;align-items:center;gap:8px"><div class="bt" style="width:80px"><div class="bf" style="width:14%;background:#7a5c2e"></div></div><span class="mono" style="font-size:11px">14%</span></div></td></tr>
+              <tr><td><div class="tdm"><div class="av" style="background:#f5eee8;border-color:#d4b896;color:#7a5c2e">💻</div><span class="mn">Elektronik</span></div></td><td>10 transaksi</td><td><span class="mono tw-c">88 kg</span></td><td><span class="mono">Rp 4.000</span></td><td><span class="mono tp-c">Rp 352.000</span></td><td><div style="display:flex;align-items:center;gap:8px"><div class="bt" style="width:80px"><div class="bf" style="width:7%;background:#b06030"></div></div><span class="mono" style="font-size:11px">7%</span></div></td></tr>
+              <tr style="background:var(--surf2)"><td><strong style="font-size:13px">Total</strong></td><td><strong>238 transaksi</strong></td><td><strong class="mono">1.247 kg</strong></td><td>—</td><td><strong class="mono" style="color:var(--gold-h)">Rp 2.102.000</strong></td><td><strong class="mono" style="font-size:11px">100%</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── PAGE: PENGATURAN ─── -->
+    <div class="page hidden" id="page-pengaturan">
+      <div class="ph2">
+        <div class="ph2-l"><div class="pt">Pengaturan <span>Sistem</span></div><div class="ps">Kelola konfigurasi Bank Sampah Wadhah Wangi</div></div>
+      </div>
+      <div class="g2" style="grid-template-columns:220px 1fr">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div id="set-tab-profil" class="sb-item active" style="border-radius:8px;color:var(--forest);background:var(--gold);font-weight:600" onclick="setTab('profil')">🏛 Profil Bank</div>
+          <div id="set-tab-pengguna" class="sb-item" style="color:var(--muted);background:none;border-radius:8px" onclick="setTab('pengguna')">👤 Pengguna</div>
+          <div id="set-tab-jadwal" class="sb-item" style="color:var(--muted);background:none;border-radius:8px" onclick="setTab('jadwal')">📅 Jadwal</div>
+          <div id="set-tab-backup" class="sb-item" style="color:var(--muted);background:none;border-radius:8px" onclick="setTab('backup')">💾 Backup</div>
+        </div>
+        <div>
+          <div id="set-profil" class="panel">
+            <div class="panel-head"><div class="panel-title">Profil Bank Sampah</div></div>
+            <div class="mb" style="padding:20px 22px">
+              <div class="fr"><div class="fg"><label class="fl">Nama Bank Sampah</label><input class="fi" value="Bank Sampah Wadhah Wangi"></div><div class="fg"><label class="fl">Kode Bank</label><input class="fi" value="BSWW-2025"></div></div>
+              <div class="fg"><label class="fl">Alamat</label><input class="fi" value="Jl. Lingkungan Hidup No. 1, RT 05 RW 02"></div>
+              <div class="fr"><div class="fg"><label class="fl">Kelurahan</label><input class="fi" value="Wadhah Indah"></div><div class="fg"><label class="fl">Kecamatan</label><input class="fi" value="Sukamaju"></div></div>
+              <div class="fr"><div class="fg"><label class="fl">Kota</label><input class="fi" value="Bandung"></div><div class="fg"><label class="fl">Provinsi</label><input class="fi" value="Jawa Barat"></div></div>
+              <div class="fr"><div class="fg"><label class="fl">No. Telepon</label><input class="fi" value="0812-xxxx-xxxx"></div><div class="fg"><label class="fl">Email</label><input class="fi" value="wadhahwangi@gmail.com"></div></div>
+            </div>
+            <div class="mf"><button class="btn btn-ghost">Batal</button><button class="btn btn-gold" onclick="showToast('Profil berhasil disimpan')">Simpan Perubahan</button></div>
+          </div>
+          <div id="set-pengguna" class="panel hidden">
+            <div class="panel-head"><div class="panel-title">Manajemen Pengguna</div><button class="btn btn-gold btn-sm">+ Tambah User</button></div>
+            <div class="tw">
+              <table>
+                <thead><tr><th>Nama</th><th>Username</th><th>Role</th><th>Status</th><th>Terakhir Login</th><th>Aksi</th></tr></thead>
+                <tbody>
+                  <tr><td><div class="tdm"><div class="av av-g">AS</div><div><div class="mn">Admin Sistem</div></div></div></td><td><span class="mono" style="font-size:11.5px">admin</span></td><td><span class="badge b-g">Super Admin</span></td><td><span class="badge b-g">Aktif</span></td><td><span class="td-d">Sekarang</span></td><td><button class="btn btn-sm btn-ghost">Edit</button></td></tr>
+                  <tr><td><div class="tdm"><div class="av">OP</div><div><div class="mn">Operator 1</div></div></div></td><td><span class="mono" style="font-size:11.5px">operator1</span></td><td><span class="badge b-y">Operator</span></td><td><span class="badge b-g">Aktif</span></td><td><span class="td-d">23 Feb 25</span></td><td><div class="td-act"><button class="btn btn-sm btn-ghost">Edit</button><button class="btn btn-sm btn-red">Hapus</button></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div id="set-jadwal" class="panel hidden">
+            <div class="panel-head"><div class="panel-title">Jadwal Operasional</div></div>
+            <div class="mb" style="padding:20px 22px">
+              <div class="fr"><div class="fg"><label class="fl">Hari Buka</label><select class="fsel"><option>Sabtu</option><option>Minggu</option><option>Sabtu & Minggu</option></select></div><div class="fg"><label class="fl">Jam Buka</label><input class="fi" value="08:00"></div></div>
+              <div class="fr"><div class="fg"><label class="fl">Jam Tutup</label><input class="fi" value="12:00"></div><div class="fg"><label class="fl">Periode Laporan</label><select class="fsel"><option>Bulanan</option><option>Mingguan</option></select></div></div>
+            </div>
+            <div class="mf"><button class="btn btn-gold" onclick="showToast('Jadwal berhasil disimpan')">Simpan</button></div>
+          </div>
+          <div id="set-backup" class="panel hidden">
+            <div class="panel-head"><div class="panel-title">Backup & Restore Data</div></div>
+            <div style="padding:20px 22px;display:flex;flex-direction:column;gap:14px">
+              <div style="background:var(--surf2);border:1px solid var(--line);border-radius:9px;padding:18px;display:flex;justify-content:space-between;align-items:center">
+                <div><div style="font-weight:600;font-size:13.5px">Backup Otomatis</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Terakhir: 24 Feb 2025 02:00 WIB</div></div>
+                <button class="btn btn-gold" onclick="showToast('Backup berhasil dibuat')">Backup Sekarang</button>
+              </div>
+              <div style="background:var(--red-s);border:1px solid rgba(200,60,60,.15);border-radius:9px;padding:18px">
+                <div style="font-weight:600;font-size:13px;color:var(--red);margin-bottom:6px">⚠ Zona Berbahaya</div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Reset data akan menghapus semua transaksi dan tidak dapat dikembalikan.</div>
+                <button class="btn btn-red btn-sm">Reset Data Sistem</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- FAB -->
+<button class="fab" id="global-fab" onclick="openModal()" title="Tambah">+</button>
+
+<!-- Modal -->
+<div class="ov" id="ov" onclick="closeOut(event)">
+  <div class="modal" id="modal">
+    <div class="mh">
+      <div><div class="mt" id="modal-title">Setoran Baru</div><div class="msub" id="modal-sub">Isi data setoran sampah nasabah</div></div>
+      <button class="mx" onclick="closeModal()">✕</button>
+    </div>
+    <div class="mb">
+      <div class="fr">
+        <div class="fg"><label class="fl">Kode Nasabah</label><input class="fi" placeholder="BSW-0000"></div>
+        <div class="fg"><label class="fl">Tanggal Setor</label><input class="fi" type="date" value="2025-02-24"></div>
+      </div>
+      <div class="fg"><label class="fl">Nama Nasabah</label><input class="fi" placeholder="Nama lengkap nasabah"></div>
+      <div class="div-lbl">Detail Sampah</div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Jenis Sampah</label><select class="fsel"><option value="">Pilih jenis…</option><option>Plastik</option><option>Kertas</option><option>Logam</option><option>Kaca</option><option>Elektronik</option></select></div>
+        <div class="fg"><label class="fl">Berat (kg)</label><input class="fi" type="number" placeholder="0.0" step="0.1" min="0"></div>
+      </div>
+      <div class="fg"><label class="fl">Keterangan</label><input class="fi" placeholder="Catatan opsional…"></div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-ghost" onclick="closeModal()">Batal</button>
+      <button class="btn btn-gold" onclick="saveModal()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"><span class="toast-dot"></span><span id="toast-msg">Berhasil disimpan</span></div>
+
+<script>
+// ── Login ──
+function doLogin(){
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('global-fab').style.display='flex';
+}
+function doLogout(){
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+}
+
+// ── Navigation ──
+const pageMap={
+  dashboard:'Dashboard',nasabah:'Data Nasabah',transaksi:'Transaksi Setor',
+  jenis:'Jenis Sampah',tabungan:'Tabungan',penarikan:'Penarikan Saldo',
+  harga:'Harga Sampah',laporan:'Laporan Bulanan',pengaturan:'Pengaturan'
+};
+const subMap={
+  dashboard:'/ Ringkasan Operasional',nasabah:'/ Daftar Nasabah',transaksi:'/ Semua Transaksi',
+  jenis:'/ Kategori Sampah',tabungan:'/ Rekening Nasabah',penarikan:'/ Kelola Penarikan',
+  harga:'/ Daftar Harga',laporan:'/ Rekap Bulanan',pengaturan:'/ Konfigurasi Sistem'
+};
+
+function navigate(p){
+  document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));
+  document.querySelectorAll('.sb-item').forEach(x=>x.classList.remove('active'));
+  const pg=document.getElementById('page-'+p);
+  if(pg){pg.classList.remove('hidden');void pg.offsetWidth;pg.style.animation='none';pg.offsetHeight;pg.style.animation='';}
+  document.querySelector(`[data-page="${p}"]`)?.classList.add('active');
+  document.getElementById('tb-title').innerHTML=`${pageMap[p]||p} <span class="tb-sub">${subMap[p]||''}</span>`;
+  window.currentPage=p;
+}
+
+document.querySelectorAll('.sb-item[data-page]').forEach(el=>{
+  el.addEventListener('click',()=>navigate(el.dataset.page));
+});
+
+// Tab clicks
+document.querySelectorAll('.tabs').forEach(tabs=>{
+  tabs.querySelectorAll('.tab').forEach(t=>{
+    t.addEventListener('click',()=>{
+      tabs.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+      t.classList.add('on');
+    });
+  });
+});
+
+// ── Modal ──
+function openModal(){document.getElementById('ov').classList.add('open');}
+function closeModal(){document.getElementById('ov').classList.remove('open');}
+function closeOut(e){if(e.target===document.getElementById('ov'))closeModal();}
+function saveModal(){closeModal();showToast('Data berhasil disimpan ✓');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+
+// ── Toast ──
+function showToast(msg){
+  const t=document.getElementById('toast');
+  document.getElementById('toast-msg').textContent=msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+// ── Settings tabs ──
+function setTab(name){
+  ['profil','pengguna','jadwal','backup'].forEach(k=>{
+    document.getElementById('set-'+k)?.classList.add('hidden');
+    const btn=document.getElementById('set-tab-'+k);
+    if(btn){btn.style.background='none';btn.style.color='var(--muted)';btn.style.fontWeight='400';}
+  });
+  document.getElementById('set-'+name)?.classList.remove('hidden');
+  const active=document.getElementById('set-tab-'+name);
+  if(active){active.style.background='var(--gold)';active.style.color='var(--forest)';active.style.fontWeight='600';}
+}
+
+// Init
+window.currentPage='dashboard';
+</script>
+</body>
+</html>

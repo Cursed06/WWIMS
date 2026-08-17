@@ -9,12 +9,71 @@ router.get('/categories', async (req, res) => {
     const categories = await prisma.wasteCategory.findMany({
       include: {
         types: {
+          include: {
+            vendor: true,
+            prices: true
+          },
           orderBy: { waste_type_id: 'asc' }
         }
       },
       orderBy: { category_id: 'asc' }
     });
     res.json(categories);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get waste types grouped by category for a specific POS's linked vendors
+router.get('/pos/:posId/waste-types', async (req, res) => {
+  const { posId } = req.params;
+  try {
+    // 1. Get vendor IDs assigned to this POS
+    const posVendors = await prisma.posVendor.findMany({
+      where: { pos_id: posId },
+      select: { vendor_id: true }
+    });
+
+    const vendorIds = posVendors.map(pv => pv.vendor_id);
+
+    // 2. Fetch categories with waste types filtered by these vendors
+    const categories = await prisma.wasteCategory.findMany({
+      include: {
+        types: {
+          where: {
+            vendor_id: { in: vendorIds }
+          },
+          include: {
+            vendor: true,
+            prices: {
+              where: {
+                vendor_id: { in: vendorIds }
+              }
+            }
+          },
+          orderBy: { waste_name: 'asc' }
+        }
+      },
+      orderBy: { category_id: 'asc' }
+    });
+
+    // Clean up response format
+    const result = categories.map(cat => ({
+      category_id: cat.category_id,
+      category_name: cat.category_name,
+      types: cat.types.map(t => ({
+        waste_type_id: t.waste_type_id,
+        waste_name: t.waste_name,
+        description: t.description,
+        unit: t.unit,
+        vendor_id: t.vendor_id,
+        vendor_name: t.vendor.vendor_name,
+        buy_price: t.prices[0] ? parseFloat(t.prices[0].buy_price) : 0,
+        sell_price: t.prices[0] ? parseFloat(t.prices[0].sell_price) : 0
+      }))
+    })).filter(cat => cat.types.length > 0);
+
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

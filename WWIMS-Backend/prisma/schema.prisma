@@ -48,7 +48,8 @@ model Vendor {
 
   pos_vendors  PosVendor[]
   prices       VendorPrice[]
-  transactions TransaksiPenimbangan[]
+  waste_types  WasteType[]
+  detail_items DetailPenimbangan[]
 
   @@map("vendors")
 }
@@ -74,12 +75,15 @@ model WasteCategory {
 }
 
 model WasteType {
-  waste_type_id String @id @db.VarChar(20)
-  category_id   String @db.VarChar(10)
-  waste_name    String @db.VarChar(100)
-  unit          String @default("kg") @db.VarChar(10) // kg, liter, biji
+  waste_type_id String  @id @db.VarChar(20)
+  category_id   String  @db.VarChar(10)
+  vendor_id     String  @db.VarChar(20)
+  waste_name    String  @db.VarChar(100)
+  description   String? @db.Text
+  unit          String  @default("kg") @db.VarChar(10) // kg, liter, biji
 
   category WasteCategory @relation(fields: [category_id], references: [category_id])
+  vendor   Vendor        @relation(fields: [vendor_id], references: [vendor_id])
 
   prices              VendorPrice[]
   transaction_details DetailPenimbangan[]
@@ -138,7 +142,6 @@ model TransaksiPenimbangan {
   transaction_id   Int      @id @default(autoincrement())
   customer_id      String   @db.VarChar(20)
   pos_id           String   @db.VarChar(20)
-  vendor_id        String   @db.VarChar(20)
   transaction_date DateTime @default(now())
   total_buy_value  Decimal  @db.Decimal(12, 2)
   total_sell_value Decimal  @db.Decimal(12, 2)
@@ -150,7 +153,6 @@ model TransaksiPenimbangan {
 
   customer Nasabah @relation(fields: [customer_id], references: [customer_id])
   pos      POS     @relation(fields: [pos_id], references: [pos_id])
-  vendor   Vendor  @relation(fields: [vendor_id], references: [vendor_id])
   creator  User?   @relation(fields: [created_by], references: [user_id])
 
   details DetailPenimbangan[]
@@ -159,16 +161,19 @@ model TransaksiPenimbangan {
 }
 
 model DetailPenimbangan {
-  detail_id      Int     @id @default(autoincrement())
-  transaction_id Int
-  waste_type_id  String  @db.VarChar(20)
-  quantity       Decimal @db.Decimal(10, 2)
-  unit           String  @db.VarChar(10) // kg, liter, biji
-  price_snapshot Decimal @db.Decimal(12, 2) // buy price snapshot
-  subtotal       Decimal @db.Decimal(12, 2) // quantity * price_snapshot
+  detail_id           Int     @id @default(autoincrement())
+  transaction_id      Int
+  waste_type_id       String  @db.VarChar(20)
+  vendor_id           String  @db.VarChar(20)
+  quantity            Decimal @db.Decimal(10, 2)
+  unit                String  @db.VarChar(10) // kg, liter, biji
+  price_snapshot      Decimal @db.Decimal(12, 2) // buy price snapshot
+  sell_price_snapshot Decimal @default(0) @db.Decimal(12, 2) // sell price snapshot
+  subtotal            Decimal @db.Decimal(12, 2) // quantity * price_snapshot
 
   transaction TransaksiPenimbangan @relation(fields: [transaction_id], references: [transaction_id], onDelete: Cascade)
   waste_type  WasteType            @relation(fields: [waste_type_id], references: [waste_type_id])
+  vendor      Vendor               @relation(fields: [vendor_id], references: [vendor_id])
 
   @@map("detail_penimbangan")
 }
