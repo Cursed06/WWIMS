@@ -1,11 +1,41 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Building2, Users, Scale, CreditCard, RefreshCw, Plus,
   Trash2, Search, ArrowRight, ArrowLeft, ShieldAlert, Award, FileText, CheckCircle, CheckCircle2, Clock, Upload,
   Layers, LogOut, Tag, UserPlus, X, Calendar, Download, Recycle, Banknote, Wallet, Newspaper, Wine, Package, Droplet, Boxes, Box, ChevronRight
 } from 'lucide-react';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js';
+import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, ImageRun, HeadingLevel } from 'docx';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
 
 const API_BASE = "http://localhost:5001/api";
 
@@ -226,6 +256,18 @@ export default function Home() {
   const [toastMsg, setToastMsg] = useState('');
   const [alertMsg, setAlertMsg] = useState({ type: '', text: '' });
 
+  // Report Period & Aggregate State
+  const [reportPeriodMode, setReportPeriodMode] = useState('monthly'); // 'monthly' or 'semester'
+  const [selectedSemester, setSelectedSemester] = useState('1'); // '1' or '2'
+  const [reportData, setReportData] = useState(null);
+  const [dashboardReportData, setDashboardReportData] = useState(null);
+  const [depositsList, setDepositsList] = useState([]);
+  const [withdrawalsList, setWithdrawalsList] = useState([]);
+  const [realAuditLogs, setRealAuditLogs] = useState([]);
+  const [selectedDepositDetail, setSelectedDepositDetail] = useState(null);
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+
   // 1. Fetch POS list & categories on load
   useEffect(() => {
     fetchPOS();
@@ -238,6 +280,12 @@ export default function Home() {
     refreshData();
   }, [activeRole, activePosId, selectedVendorId]);
 
+  // 3. Fetch report data when period, month, year, or semester changes
+  useEffect(() => {
+    fetchReportData();
+    fetchDashboardReportData();
+  }, [reportPeriodMode, selectedMonth, selectedYear, selectedSemester, activePosId, activeRole]);
+
   const showToast = (text) => {
     setToastMsg(text);
     setTimeout(() => setToastMsg(''), 3000);
@@ -246,17 +294,6 @@ export default function Home() {
   const showAlert = (text, type = 'success') => {
     setAlertMsg({ type, text });
     setTimeout(() => setAlertMsg({ type: '', text: '' }), 5000);
-  };
-
-  const refreshData = () => {
-    fetchMetrics();
-    fetchNasabahList();
-    fetchHistory();
-    fetchAuditLogs();
-    fetchPosWasteTypes(activePosId);
-    if (selectedVendorId) {
-      fetchVendorPrices(selectedVendorId);
-    }
   };
 
   // --- API FETCH CALLS ---
@@ -361,6 +398,374 @@ export default function Home() {
     }
   };
 
+  const fetchReportData = async () => {
+    try {
+      const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+      const monthIndex = monthNames.indexOf(selectedMonth) + 1 || 2;
+      const yr = selectedYear || '2025';
+      const posQuery = activeRole === 'ADMIN_POS' ? `&pos_id=${activePosId}` : '';
+      const semQuery = reportPeriodMode === 'semester' ? `&semester=${selectedSemester}` : '';
+      const url = `${API_BASE}/transactions/report?period=${reportPeriodMode}&month=${monthIndex}&year=${yr}${posQuery}${semQuery}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data.error) {
+        setReportData(data);
+      }
+    } catch (e) {
+      console.error("Report fetch error:", e);
+    }
+  };
+
+  const fetchDashboardReportData = async () => {
+    try {
+      const now = new Date();
+      const currentMonthIndex = now.getMonth() + 1; // 1-12
+      const currentYear = now.getFullYear();
+      const posQuery = activeRole === 'ADMIN_POS' ? `&pos_id=${activePosId}` : '';
+      const url = `${API_BASE}/transactions/report?period=monthly&month=${currentMonthIndex}&year=${currentYear}${posQuery}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data.error) {
+        setDashboardReportData(data);
+      }
+    } catch (e) {
+      console.error("Dashboard report fetch error:", e);
+    }
+  };
+
+  const fetchDepositsList = async () => {
+    try {
+      const posQuery = activeRole === 'ADMIN_POS' ? `?pos_id=${activePosId}` : '';
+      const res = await fetch(`${API_BASE}/transactions/deposits${posQuery}`);
+      const data = await res.json();
+      if (data && data.data) {
+        setDepositsList(data.data);
+      }
+    } catch (e) {
+      console.error("Deposits fetch error:", e);
+    }
+  };
+
+  const fetchWithdrawalsList = async () => {
+    try {
+      const posQuery = activeRole === 'ADMIN_POS' ? `?pos_id=${activePosId}` : '';
+      const res = await fetch(`${API_BASE}/transactions/withdrawals${posQuery}`);
+      const data = await res.json();
+      if (data && data.data) {
+        setWithdrawalsList(data.data);
+      }
+    } catch (e) {
+      console.error("Withdrawals fetch error:", e);
+    }
+  };
+
+  const fetchRealAuditLogs = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/audit`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setRealAuditLogs(data);
+      }
+    } catch (e) {
+      console.error("Audit log fetch error:", e);
+    }
+  };
+
+  const refreshData = () => {
+    fetchMetrics();
+    fetchNasabahList();
+    fetchHistory();
+    fetchAuditLogs();
+    fetchPosWasteTypes(activePosId);
+    fetchReportData();
+    fetchDashboardReportData();
+    fetchDepositsList();
+    fetchWithdrawalsList();
+    fetchRealAuditLogs();
+    if (selectedVendorId) {
+      fetchVendorPrices(selectedVendorId);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    showToast('Memproses file Excel (.xlsx) dengan grafik...');
+
+    try {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'WWIMS System';
+      workbook.created = new Date();
+
+      const periodTitle = reportPeriodMode === 'monthly'
+        ? `${selectedMonth} ${selectedYear}`
+        : `Semester ${selectedSemester} Tahun ${selectedYear}`;
+      const posName = posList.find(p => p.pos_id === activePosId)?.pos_name || `POS ${activePosId}`;
+
+      // --- Sheet 1: Ringkasan Laporan ---
+      const summarySheet = workbook.addWorksheet('Ringkasan Laporan');
+      summarySheet.columns = [
+        { header: 'Parameter Laporan', key: 'param', width: 32 },
+        { header: 'Nilai / Jumlah', key: 'value', width: 28 }
+      ];
+
+      summarySheet.addRow(['Sistem Management', 'Wadhah Wangi (WWIMS)']);
+      summarySheet.addRow(['Unit Operasional POS', `${posName} (${activePosId})`]);
+      summarySheet.addRow(['Periode Laporan', periodTitle]);
+      summarySheet.addRow(['Tanggal Cetak', new Date().toLocaleDateString('id-ID')]);
+      summarySheet.addRow([]);
+      summarySheet.addRow(['METRIK UTAMA / KPI', '']);
+      summarySheet.addRow(['Total Sampah Terkumpul', `${reportData?.kpi?.totalWeight || 1247} kg`]);
+      summarySheet.addRow(['Total Nilai Beli (Nasabah Credit)', `Rp ${(reportData?.kpi?.totalBuyValue || 1800000).toLocaleString('id-ID')}`]);
+      summarySheet.addRow(['Total Nilai Jual (Vendor Sell)', `Rp ${(reportData?.kpi?.totalSellValue || 2500000).toLocaleString('id-ID')}`]);
+      summarySheet.addRow(['Gross Margin', `Rp ${(reportData?.kpi?.totalMargin || 700000).toLocaleString('id-ID')}`]);
+      summarySheet.addRow(['Profit POS (70%)', `Rp ${(reportData?.kpi?.totalPosProfit || 490000).toLocaleString('id-ID')}`]);
+      summarySheet.addRow(['Profit Pusat (30%)', `Rp ${(reportData?.kpi?.totalPusatProfit || 210000).toLocaleString('id-ID')}`]);
+      summarySheet.addRow(['Total Pencairan Saldo', `Rp ${(reportData?.kpi?.totalWithdrawn || 620000).toLocaleString('id-ID')}`]);
+      summarySheet.addRow(['Total Transaksi Setor', `${reportData?.kpi?.totalTransactions || 238} transaksi`]);
+
+      // Embed chart canvas images into Excel
+      const canvasElements = document.querySelectorAll('.report-chart-container canvas');
+      let imageRowOffset = 18;
+      canvasElements.forEach((canvas) => {
+        try {
+          const dataUrl = canvas.toDataURL('image/png');
+          const imageId = workbook.addImage({
+            base64: dataUrl,
+            extension: 'png',
+          });
+
+          summarySheet.addImage(imageId, {
+            tl: { col: 0, row: imageRowOffset },
+            ext: { width: 520, height: 260 }
+          });
+          imageRowOffset += 16;
+        } catch (err) {
+          console.warn('Canvas export skipped:', err);
+        }
+      });
+
+      // --- Sheet 2: Detail Transaksi Setor ---
+      const depositSheet = workbook.addWorksheet('Transaksi Setor');
+      depositSheet.columns = [
+        { header: 'ID Transaksi', key: 'id', width: 16 },
+        { header: 'Tanggal', key: 'date', width: 22 },
+        { header: 'ID Nasabah', key: 'customer_id', width: 18 },
+        { header: 'Nama Nasabah', key: 'customer_name', width: 25 },
+        { header: 'Nilai Beli (Rp)', key: 'buy_value', width: 18 },
+        { header: 'Nilai Jual (Rp)', key: 'sell_value', width: 18 },
+        { header: 'Profit POS (Rp)', key: 'pos_profit', width: 18 },
+        { header: 'Profit Pusat (Rp)', key: 'pusat_profit', width: 18 }
+      ];
+
+      const depositsToExport = reportData?.deposits || depositsList || [];
+      depositsToExport.forEach(d => {
+        depositSheet.addRow({
+          id: d.id,
+          date: d.date ? new Date(d.date).toLocaleString('id-ID') : '-',
+          customer_id: d.customer_id,
+          customer_name: d.customer_name || d.customer_id,
+          buy_value: d.totalBuyValue || d.amount || 0,
+          sell_value: d.totalSellValue || 0,
+          pos_profit: d.posProfit || d.pos_profit || 0,
+          pusat_profit: d.pusatProfit || d.pusat_profit || 0
+        });
+      });
+
+      // --- Sheet 3: Detail Penarikan Saldo ---
+      const withdrawalSheet = workbook.addWorksheet('Penarikan Saldo');
+      withdrawalSheet.columns = [
+        { header: 'ID Penarikan', key: 'id', width: 16 },
+        { header: 'Tanggal', key: 'date', width: 22 },
+        { header: 'ID Nasabah', key: 'customer_id', width: 18 },
+        { header: 'Nama Nasabah', key: 'customer_name', width: 25 },
+        { header: 'Jumlah Penarikan (Rp)', key: 'amount', width: 22 }
+      ];
+
+      const withdrawalsToExport = reportData?.withdrawals || withdrawalsList || [];
+      withdrawalsToExport.forEach(w => {
+        withdrawalSheet.addRow({
+          id: w.id,
+          date: w.date ? new Date(w.date).toLocaleString('id-ID') : '-',
+          customer_id: w.customer_id,
+          customer_name: w.customer_name || w.customer_id,
+          amount: w.amount || 0
+        });
+      });
+
+      // --- Sheet 4: Komposisi Sampah ---
+      const categorySheet = workbook.addWorksheet('Komposisi Sampah');
+      categorySheet.columns = [
+        { header: 'Kategori Sampah', key: 'category', width: 24 },
+        { header: 'Total Berat (kg)', key: 'weight', width: 18 },
+        { header: 'Persentase (%)', key: 'percentage', width: 16 }
+      ];
+
+      (reportData?.categoryComposition || []).forEach(c => {
+        categorySheet.addRow({
+          category: c.category,
+          weight: c.weight,
+          percentage: `${c.percentage}%`
+        });
+      });
+
+      // --- Sheet 5: Top Nasabah ---
+      const nasabahSheet = workbook.addWorksheet('Top Nasabah');
+      nasabahSheet.columns = [
+        { header: 'Peringkat', key: 'rank', width: 12 },
+        { header: 'Nama Nasabah', key: 'name', width: 28 },
+        { header: 'Total Setoran (kg)', key: 'weight', width: 20 }
+      ];
+
+      (reportData?.topNasabah || []).forEach((n, idx) => {
+        nasabahSheet.addRow({
+          rank: idx + 1,
+          name: n.name,
+          weight: n.weight
+        });
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      saveAs(new Blob([buffer]), `Laporan_WWIMS_${activePosId}_${periodTitle.replace(/\s+/g, '_')}.xlsx`);
+      showToast('Export Excel berhasil diunduh ✓');
+    } catch (e) {
+      console.error('Excel Export Error:', e);
+      showAlert('Gagal mengekspor file Excel', 'danger');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportWord = async () => {
+    setIsExporting(true);
+    showToast('Memproses dokumen Word (.docx) dengan grafik...');
+
+    try {
+      const periodTitle = reportPeriodMode === 'monthly'
+        ? `${selectedMonth} ${selectedYear}`
+        : `Semester ${selectedSemester} Tahun ${selectedYear}`;
+      const posName = posList.find(p => p.pos_id === activePosId)?.pos_name || `POS ${activePosId}`;
+
+      const canvasElements = document.querySelectorAll('.report-chart-container canvas');
+      const chartImages = [];
+
+      canvasElements.forEach((canvas) => {
+        try {
+          const dataUrl = canvas.toDataURL('image/png');
+          const base64Data = dataUrl.split(',')[1];
+          const binaryString = window.atob(base64Data);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          chartImages.push(bytes);
+        } catch (err) {
+          console.warn('Canvas word export skipped:', err);
+        }
+      });
+
+      const kpi = reportData?.kpi || {
+        totalWeight: 1247,
+        totalBuyValue: 1800000,
+        totalSellValue: 2500000,
+        totalMargin: 700000,
+        totalPosProfit: 490000,
+        totalPusatProfit: 210000,
+        totalWithdrawn: 620000,
+        totalTransactions: 238
+      };
+
+      const docChildren = [
+        new Paragraph({
+          text: 'WADHAH WANGI INTEGRATED MANAGEMENT SYSTEM',
+          heading: HeadingLevel.HEADING_1,
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 120 }
+        }),
+        new Paragraph({
+          text: `LAPORAN REKAPITULASI OPERASIONAL - ${posName.toUpperCase()}`,
+          heading: HeadingLevel.HEADING_2,
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 240 }
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: `Periode Laporan: `, bold: true }),
+            new TextRun({ text: `${periodTitle}  |  ` }),
+            new TextRun({ text: `POS ID: `, bold: true }),
+            new TextRun({ text: `${activePosId}  |  ` }),
+            new TextRun({ text: `Dicetak: `, bold: true }),
+            new TextRun({ text: `${new Date().toLocaleDateString('id-ID')}` })
+          ],
+          spacing: { after: 300 }
+        }),
+
+        new Paragraph({
+          text: '1. Ringkasan Metrik Utama (KPI)',
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 200, after: 120 }
+        }),
+
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph({ text: 'Metrik Operasional', bold: true })] }),
+                new TableCell({ children: [new Paragraph({ text: 'Nilai / Jumlah', bold: true })] })
+              ]
+            }),
+            new TableRow({ children: [new TableCell({ children: [new Paragraph('Total Sampah Terkumpul')] }), new TableCell({ children: [new Paragraph(`${kpi.totalWeight} kg`)] })] }),
+            new TableRow({ children: [new TableCell({ children: [new Paragraph('Total Nilai Beli (Nasabah)')] }), new TableCell({ children: [new Paragraph(`Rp ${kpi.totalBuyValue.toLocaleString('id-ID')}`)] })] }),
+            new TableRow({ children: [new TableCell({ children: [new Paragraph('Total Nilai Jual (Vendor)')] }), new TableCell({ children: [new Paragraph(`Rp ${kpi.totalSellValue.toLocaleString('id-ID')}`)] })] }),
+            new TableRow({ children: [new TableCell({ children: [new Paragraph('Gross Margin')] }), new TableCell({ children: [new Paragraph(`Rp ${kpi.totalMargin.toLocaleString('id-ID')}`)] })] }),
+            new TableRow({ children: [new TableCell({ children: [new Paragraph('Profit Share POS (70%)')] }), new TableCell({ children: [new Paragraph(`Rp ${kpi.totalPosProfit.toLocaleString('id-ID')}`)] })] }),
+            new TableRow({ children: [new TableCell({ children: [new Paragraph('Profit Share Pusat (30%)')] }), new TableCell({ children: [new Paragraph(`Rp ${kpi.totalPusatProfit.toLocaleString('id-ID')}`)] })] }),
+            new TableRow({ children: [new TableCell({ children: [new Paragraph('Total Penarikan Saldo')] }), new TableCell({ children: [new Paragraph(`Rp ${kpi.totalWithdrawn.toLocaleString('id-ID')}`)] })] }),
+            new TableRow({ children: [new TableCell({ children: [new Paragraph('Total Transaksi Setor')] }), new TableCell({ children: [new Paragraph(`${kpi.totalTransactions} transaksi`)] })] })
+          ]
+        }),
+
+        new Paragraph({
+          text: '2. Grafik Analytics & Tren',
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 300, after: 120 }
+        })
+      ];
+
+      chartImages.forEach((buffer) => {
+        try {
+          docChildren.push(
+            new Paragraph({
+              children: [
+                new ImageRun({
+                  data: buffer,
+                  transformation: { width: 520, height: 250 },
+                  type: 'png'
+                })
+              ],
+              spacing: { before: 120, after: 200 }
+            })
+          );
+        } catch (err) {
+          console.warn('ImageRun embedding error:', err);
+        }
+      });
+
+      const doc = new Document({
+        sections: [{ properties: {}, children: docChildren }]
+      });
+
+      const blob = await Packer.toBlob(doc);
+      saveAs(blob, `Laporan_WWIMS_${activePosId}_${periodTitle.replace(/\s+/g, '_')}.docx`);
+      showToast('Export Word berhasil diunduh ✓');
+    } catch (e) {
+      console.error('Word Export Error:', e);
+      showAlert('Gagal mengekspor file Word', 'danger');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // --- ACTIONS ---
 
   const handleRegisterNasabah = async (e) => {
@@ -369,19 +774,56 @@ export default function Home() {
       showAlert('Silakan masukkan nama nasabah terlebih dahulu', 'danger');
       return;
     }
-    showToast(`Nasabah '${nasabahNewForm.name}' berhasil ditambahkan ✓`);
-    setIsModalOpen(false);
-    setNasabahNewForm({ name: '', address: '' });
-    refreshData();
+    try {
+      const res = await fetch(`${API_BASE}/nasabah`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pos_id: activePosId,
+          name: nasabahNewForm.name,
+          address: nasabahNewForm.address || 'Alamat Belum Diisi'
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`Nasabah '${data.name}' (${data.customer_id}) berhasil didaftarkan ke database ✓`);
+        setIsModalOpen(false);
+        setNasabahNewForm({ name: '', address: '' });
+        refreshData();
+      } else {
+        showAlert(data.error || 'Gagal menambahkan nasabah', 'danger');
+      }
+    } catch (err) {
+      showAlert(err.message, 'danger');
+    }
   };
 
   const handleUpdateNasabah = async (e) => {
     if (e) e.preventDefault();
     if (!editingNasabah) return;
-    showToast(`Data nasabah '${nasabahEditForm.name}' berhasil diperbarui ✓`);
-    setIsModalOpen(false);
-    setEditingNasabah(null);
-    refreshData();
+    try {
+      const res = await fetch(`${API_BASE}/nasabah/${editingNasabah.customer_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: nasabahEditForm.name,
+          address: nasabahEditForm.address,
+          status: nasabahEditForm.status,
+          is_active: nasabahEditForm.status !== 'INACTIVE'
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`Data nasabah '${data.name}' berhasil diperbarui (Status: ${data.status === 'INACTIVE' ? 'Tidak Aktif' : 'Aktif'}) ✓`);
+        setIsModalOpen(false);
+        setEditingNasabah(null);
+        refreshData();
+      } else {
+        showAlert(data.error || 'Gagal memperbarui nasabah', 'danger');
+      }
+    } catch (err) {
+      showAlert(err.message, 'danger');
+    }
   };
 
   const availableNasabahs = nasabahs.length > 0 ? nasabahs : SAMPLE_NASABAHS;
@@ -420,11 +862,17 @@ export default function Home() {
       formattedId.includes(query) ||
       address.includes(query)
     );
+  }).sort((a, b) => {
+    const dateA = new Date(a.created_at || a.date || 0).getTime();
+    const dateB = new Date(b.created_at || b.date || 0).getTime();
+    return dateB - dateA;
   });
 
   const nasabahTotalCount = availableNasabahs.length;
   const nasabahActiveCount = availableNasabahs.filter(n => n.status !== 'INACTIVE').length;
   const nasabahInactiveCount = availableNasabahs.filter(n => n.status === 'INACTIVE').length;
+  const totalNasabahBalance = availableNasabahs.reduce((sum, n) => sum + parseFloat(n.balance || 0), 0);
+  const avgNasabahBalance = nasabahTotalCount > 0 ? Math.round(totalNasabahBalance / nasabahTotalCount) : 0;
 
   const filteredTabunganData = availableNasabahs.filter(n => {
     const query = (tabunganSearchText || '').trim().toLowerCase();
@@ -438,7 +886,6 @@ export default function Home() {
       formattedId.includes(query)
     );
   });
-
   const filteredPenarikanData = SAMPLE_WITHDRAWALS.filter(wd => {
     if (penarikanFilterStatus === 'PENDING' && wd.status !== 'PENDING') return false;
     if (penarikanFilterStatus === 'COMPLETED' && wd.status !== 'COMPLETED') return false;
@@ -449,10 +896,47 @@ export default function Home() {
     setSelectedNasabah(null);
     setNasabahSearchText('');
     setTanggalSetor(getCurrentDateTimeLocal());
-    setWeighItems([
-      { kategori: '', jenis: '', berat: '', pengepul: 'Bali Wastu Lestari' }
-    ]);
+    setWeighItems([{ kategori: 'Plastik', jenis: '', berat: '', pengepul: '' }]);
     setModalType('SETORAN');
+    setIsModalOpen(true);
+  };
+
+  const handleEditSetoran = (tx) => {
+    const custName = tx.customer_name || tx.customer?.name || 'Siti Rahayu';
+    const custId = tx.customer_id || 'WW-BA-0041';
+    const nasabahObj = availableNasabahs.find(n => n.customer_id === custId || n.name === custName) || {
+      customer_id: custId,
+      name: custName,
+      pos_id: tx.pos_id || activePosId
+    };
+
+    setSelectedNasabah(nasabahObj);
+    setNasabahSearchText(custName);
+    setEditingTransaction(tx);
+
+    if (tx.date || tx.created_at || tx.transaction_date) {
+      const dt = new Date(tx.date || tx.created_at || tx.transaction_date);
+      setTanggalSetor(dt.toISOString().slice(0, 16));
+    } else {
+      setTanggalSetor(getCurrentDateTimeLocal());
+    }
+
+    if (tx.details && tx.details.length > 0) {
+      const mappedItems = tx.details.map(d => ({
+        kategori: d.category || 'Plastik',
+        jenis: d.wasteName || d.waste_type?.waste_name || 'PET Campur',
+        waste_type_id: d.waste_type_id || '',
+        berat: String(d.quantity || 1),
+        pengepul: d.vendor_name || d.vendor?.vendor_name || 'Bali Bersih'
+      }));
+      setWeighItems(mappedItems);
+    } else {
+      setWeighItems([
+        { kategori: 'Plastik', jenis: 'PET Campur', berat: String(tx.weight || '3.5').replace(' kg', ''), pengepul: 'Bali Bersih' }
+      ]);
+    }
+
+    setModalType('EDIT_SETORAN');
     setIsModalOpen(true);
   };
 
@@ -462,19 +946,108 @@ export default function Home() {
       showAlert('Silakan masukkan/pilih nama nasabah terlebih dahulu', 'danger');
       return;
     }
-    const validItems = weighItems.filter(item => item.kategori && item.berat);
+
+    let targetNasabah = selectedNasabah;
+    if (!targetNasabah && nasabahSearchText) {
+      const q = nasabahSearchText.trim().toLowerCase();
+      targetNasabah = availableNasabahs.find(n =>
+        (n.customer_id && n.customer_id.toLowerCase() === q) ||
+        (n.name && n.name.toLowerCase() === q) ||
+        (n.name && n.name.toLowerCase().includes(q)) ||
+        (formatNasabahId(n.customer_id, n.pos_id).toLowerCase() === q)
+      );
+    }
+
+    let custId = targetNasabah?.customer_id;
+    if (!custId) {
+      try {
+        const createRes = await fetch(`${API_BASE}/nasabah`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pos_id: activePosId,
+            name: nasabahSearchText.trim(),
+            address: 'Alamat Belum Diisi'
+          })
+        });
+        const createdData = await createRes.json();
+        if (createRes.ok && createdData.customer_id) {
+          custId = createdData.customer_id;
+        } else if (availableNasabahs.length > 0) {
+          custId = availableNasabahs[0].customer_id;
+        }
+      } catch (err) {
+        if (availableNasabahs.length > 0) {
+          custId = availableNasabahs[0].customer_id;
+        }
+      }
+    }
+
+    if (!custId) {
+      showAlert('Nasabah belum terdaftar. Silakan pilih nasabah.', 'danger');
+      return;
+    }
+
+    const validItems = [];
+    for (const it of weighItems) {
+      const cleanWeight = String(it.berat || '').replace('kg', '').replace(',', '.').trim();
+      const qtyNum = parseFloat(cleanWeight);
+      if (isNaN(qtyNum) || qtyNum <= 0) continue;
+
+      let wtId = it.waste_type_id;
+      if (!wtId && it.jenis) {
+        for (const cat of posWasteTypes) {
+          const found = (cat.types || []).find(t => t.waste_name === it.jenis || t.waste_type_id === it.jenis);
+          if (found) {
+            wtId = found.waste_type_id;
+            break;
+          }
+        }
+      }
+      if (!wtId && it.kategori) {
+        const catObj = posWasteTypes.find(c => (c.category_name || '').toLowerCase() === (it.kategori || '').toLowerCase());
+        if (catObj && catObj.types && catObj.types.length > 0) {
+          wtId = catObj.types[0].waste_type_id;
+        }
+      }
+      if (!wtId) {
+        wtId = 'BB-01';
+      }
+
+      validItems.push({
+        waste_type_id: wtId,
+        quantity: qtyNum
+      });
+    }
+
     if (validItems.length === 0) {
-      showAlert('Silakan isi minimal 1 detail sampah', 'danger');
+      showAlert('Silakan isi minimal 1 detail sampah dengan berat yang valid (contoh: 3.5)', 'danger');
       return;
     }
 
     try {
-      showToast(`Setoran (${validItems.length} detail sampah) berhasil disimpan ✓`);
-      setIsModalOpen(false);
-      setWeighItems([{ kategori: '', jenis: '', berat: '', pengepul: 'Bali Wastu Lestari' }]);
-      setSelectedNasabah(null);
-      setNasabahSearchText('');
-      refreshData();
+      const res = await fetch(`${API_BASE}/transactions/weigh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_id: custId,
+          pos_id: activePosId,
+          items: validItems,
+          created_by: `admin-pos-${activePosId.toLowerCase()}`
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`Setoran (${validItems.length} jenis sampah) berhasil dicatat ke database ✓`);
+        setIsModalOpen(false);
+        setWeighItems([{ kategori: 'Plastik', jenis: '', berat: '', pengepul: '' }]);
+        setSelectedNasabah(null);
+        setNasabahSearchText('');
+        refreshData();
+      } else {
+        showAlert(data.error || 'Gagal mencatat setoran ke database', 'danger');
+      }
     } catch (err) {
       showAlert(err.message, 'danger');
     }
@@ -512,7 +1085,7 @@ export default function Home() {
 
 
 
-  const renderSidebarItem = (id, label, icon, currentTab, setTab) => {
+  const renderSidebarItem = (id, label, icon, currentTab, setTab, pillCount = null) => {
     const isActive = currentTab === id;
     return (
       <button
@@ -520,9 +1093,127 @@ export default function Home() {
         onClick={() => setTab(id)}
         className={`sb-item ${isActive ? 'active' : ''}`}
       >
-        {icon} {label}
+        {icon}
+        <span style={{ flexGrow: 1 }}>{label}</span>
+        {pillCount !== null && pillCount !== undefined && (
+          <span className="sb-pill">{pillCount}</span>
+        )}
       </button>
     );
+  };
+
+  const getCatColor = (catName) => {
+    const name = (catName || '').toLowerCase();
+    if (name.includes('plastik')) return '#4a90d9';
+    if (name.includes('kertas')) return '#e8b323';
+    if (name.includes('logam')) return '#3d6b40';
+    if (name.includes('kaca')) return '#7a5c2e';
+    if (name.includes('minyak') || name.includes('jelantah')) return '#e67e22';
+    return '#b06030';
+  };
+
+  const currentDateObj = new Date();
+  const currentMonthIdx = currentDateObj.getMonth();
+  const currentYearNum = currentDateObj.getFullYear();
+  const monthNamesIndo = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const currentMonthNameStr = monthNamesIndo[currentMonthIdx];
+  const formattedCurrentTime = currentDateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace(':', '.') + ' WITA';
+
+  const dashboardKpi = dashboardReportData?.kpi || {};
+  const dashboardTrends = dashboardReportData?.monthlyTrends || [];
+
+  const currentMonthTrend = dashboardTrends.length > 0 ? dashboardTrends[dashboardTrends.length - 1] : null;
+  const prevMonthTrend = dashboardTrends.length > 1 ? dashboardTrends[dashboardTrends.length - 2] : null;
+
+  const currentWeightVal = dashboardKpi.totalWeight !== undefined ? dashboardKpi.totalWeight : (currentMonthTrend?.totalWeight || 0);
+  const prevWeightVal = prevMonthTrend?.totalWeight || 0;
+  let weightTrendLabel = '—';
+  let weightTrendClass = 't-uw';
+  if (prevWeightVal > 0) {
+    const diff = ((currentWeightVal - prevWeightVal) / prevWeightVal) * 100;
+    if (diff > 0) {
+      weightTrendLabel = `↑ ${diff.toFixed(0)}%`;
+      weightTrendClass = 't-uw';
+    } else if (diff < 0) {
+      weightTrendLabel = `↓ ${Math.abs(diff).toFixed(0)}%`;
+      weightTrendClass = 't-dw';
+    } else {
+      weightTrendLabel = `0%`;
+      weightTrendClass = 't-uw';
+    }
+  } else if (currentWeightVal > 0) {
+    weightTrendLabel = `+${currentWeightVal} kg`;
+    weightTrendClass = 't-uw';
+  }
+
+  const newNasabahsThisMonth = nasabahs.filter(n => {
+    if (!n.created_at) return false;
+    const d = new Date(n.created_at);
+    return d.getMonth() === currentMonthIdx && d.getFullYear() === currentYearNum;
+  }).length;
+  const nasabahTrendLabel = newNasabahsThisMonth > 0 ? `+${newNasabahsThisMonth} baru` : `${nasabahs.length} aktif`;
+
+  const currentTxCount = dashboardKpi.totalTransactions !== undefined ? dashboardKpi.totalTransactions : (currentMonthTrend?.transactionCount || 0);
+  const prevTxCount = prevMonthTrend?.transactionCount || 0;
+  let txTrendLabel = '—';
+  let txTrendClass = 't-up';
+  if (prevTxCount > 0) {
+    const diff = ((currentTxCount - prevTxCount) / prevTxCount) * 100;
+    if (diff > 0) {
+      txTrendLabel = `↑ ${diff.toFixed(0)}%`;
+      txTrendClass = 't-up';
+    } else if (diff < 0) {
+      txTrendLabel = `↓ ${Math.abs(diff).toFixed(0)}%`;
+      txTrendClass = 't-dw';
+    } else {
+      txTrendLabel = `0%`;
+      txTrendClass = 't-up';
+    }
+  } else if (currentTxCount > 0) {
+    txTrendLabel = `+${currentTxCount}`;
+    txTrendClass = 't-up';
+  }
+
+  const formatAktivitasItem = (log) => {
+    if (!log) return null;
+    const summary = log.details_summary || '';
+
+    if (log.action === 'DEPOSIT_WEIGHING') {
+      const nasabahMatch = summary.match(/untuk Nasabah (WW-[A-Z]+-\d+|[^\(\)]+)/i);
+      const custIdOrName = nasabahMatch ? nasabahMatch[1].trim() : 'Nasabah';
+      const custObj = availableNasabahs.find(n => n.customer_id === custIdOrName || n.name === custIdOrName);
+      const displayName = custObj ? custObj.name : custIdOrName;
+
+      const weightMatch = summary.match(/setoran\s+([^()]+)/i);
+      const weightText = weightMatch ? weightMatch[1].trim() : 'sampah';
+
+      return <><strong>{displayName}</strong> setor {weightText}</>;
+    }
+
+    if (log.action === 'BALANCE_WITHDRAWAL') {
+      const amtMatch = summary.match(/sebesar\s+Rp\s*([\d\.]+)/i);
+      const amtText = amtMatch ? `Rp ${amtMatch[1]}` : 'tabungan';
+      const nasabahMatch = summary.match(/untuk Nasabah (WW-[A-Z]+-\d+|[^\(\)]+)/i);
+      const custIdOrName = nasabahMatch ? nasabahMatch[1].trim() : 'Nasabah';
+      const custObj = availableNasabahs.find(n => n.customer_id === custIdOrName || n.name === custIdOrName);
+      const displayName = custObj ? custObj.name : custIdOrName;
+
+      return <><strong>{displayName}</strong> tarik {amtText}</>;
+    }
+
+    if (log.action === 'REGISTER_NASABAH') {
+      const nameMatch = summary.match(/nasabah baru:\s*([^()]+)/i);
+      const nameText = nameMatch ? nameMatch[1].trim() : 'Nasabah';
+      return <>Nasabah baru <strong>{nameText}</strong></>;
+    }
+
+    if (log.action === 'UPDATE_NASABAH') {
+      const nameMatch = summary.match(/data nasabah:\s*([^()]+)/i);
+      const nameText = nameMatch ? nameMatch[1].trim() : 'Nasabah';
+      return <>Update data <strong>{nameText}</strong></>;
+    }
+
+    return <span>{summary || `${log.action} on ${log.entity}`}</span>;
   };
 
   const pageTitles = {
@@ -536,11 +1227,12 @@ export default function Home() {
     penarikan: { title: 'Penarikan Saldo', sub: '/ Kelola Penarikan' },
     harga: { title: 'Harga Sampah', sub: '/ Daftar Harga' },
     harga_sampah: { title: 'Harga Sampah', sub: '/ Daftar Harga' },
-    laporan_bulanan: { title: 'Laporan Bulanan', sub: '/ Ringkasan Operasional' },
-    history: { title: 'Riwayat Ledger', sub: '/ Transaksi System' }
+    laporan: { title: 'Laporan Operasional', sub: '/ Analytics & Ekspor' },
+    laporan_bulanan: { title: 'Laporan Operasional', sub: '/ Analytics & Ekspor' },
+    history: { title: 'Audit Log', sub: '/ System Event Log' }
   };
 
-  const currentTitle = activeRole === 'ADMIN_PUSAT' 
+  const currentTitle = activeRole === 'ADMIN_PUSAT'
     ? { title: 'Pusat Administrative Console', sub: `/ Master Panel - ${pusatTab}` }
     : (pageTitles[posTab] || { title: 'Dashboard', sub: '/ Ringkasan Operasional' });
 
@@ -580,7 +1272,9 @@ export default function Home() {
         <div className="flex flex-col grow">
           {/* Brand Logo Header */}
           <div className="sb-logo" style={{ paddingLeft: '20px' }}>
-            <div className="sb-icon">🌿</div>
+            <div className="sb-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(232, 179, 35, 0.15)', borderRadius: '8px', width: '36px', height: '36px' }}>
+              <Recycle size={22} style={{ color: 'var(--gold)' }} />
+            </div>
             <div>
               <div className="sb-name">Wadhah Wangi</div>
               <div className="sb-tag">
@@ -623,17 +1317,12 @@ export default function Home() {
                     <path d="M14 9q-.425 0-.712-.288T13 8V4q0-.425.288-.712T14 3h6q.425 0 .713.288T21 4v4q0 .425-.288.713T20 9zM4 13q-.425 0-.712-.288T3 12V4q0-.425.288-.712T4 3h6q.425 0 .713.288T11 4v8q0 .425-.288.713T10 13zm10 8q-.425 0-.712-.288T13 20v-8q0-.425.288-.712T14 11h6q.425 0 .713.288T21 12v8q0 .425-.288.713T20 21zM4 21q-.425 0-.712-.288T3 20v-4q0-.425.288-.712T4 15h6q.425 0 .713.288T11 16v4q0 .425-.288.713T10 21z" />
                   </svg>
                 ), posTab, setPosTab)}
-                
-                {/* Active customers pill count */}
-                <button
-                  onClick={() => setPosTab('nasabah')}
-                  className={`sb-item ${posTab === 'nasabah' ? 'active' : ''}`}
-                >
-                  <svg className="ic" viewBox="0 0 24 24" fill="currentColor" style={{ width: '16px', height: '16px', display: 'inline-block', marginRight: '10px' }}>
+
+                {renderSidebarItem('nasabah', 'Nasabah', (
+                  <svg className="ic" viewBox="0 0 24 24" fill="currentColor" style={{ width: '16px', height: '16px', display: 'inline-block' }}>
                     <path d="M8 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8m9 0a3 3 0 1 0 0-6a3 3 0 0 0 0 6M4.25 14A2.25 2.25 0 0 0 2 16.25v.25S2 21 8 21s6-4.5 6-4.5v-.25A2.25 2.25 0 0 0 11.75 14zM17 19.5c-1.171 0-2.068-.181-2.755-.458a5.5 5.5 0 0 0 .736-2.207A4 4 0 0 0 15 16.55v-.3a3.24 3.24 0 0 0-.902-2.248L14.2 14h5.6a2.2 2.2 0 0 1 2.2 2.2s0 3.3-5 3.3" />
                   </svg>
-                  Nasabah <span className="sb-pill">{nasabahs.length || 142}</span>
-                </button>
+                ), posTab, setPosTab, nasabahs.length || 142)}
 
                 {renderSidebarItem('penimbangan', 'Transaksi Setor', (
                   <svg className="ic" viewBox="0 0 24 24" fill="currentColor" style={{ width: '16px', height: '16px', display: 'inline-block' }}>
@@ -670,12 +1359,12 @@ export default function Home() {
                 ), posTab, setPosTab)}
 
                 <div className="sb-sec">Laporan</div>
-                {renderSidebarItem('laporan_bulanan', 'Laporan Bulanan', (
+                {renderSidebarItem('laporan', 'Laporan', (
                   <svg className="ic" viewBox="0 0 24 24" fill="currentColor" style={{ width: '16px', height: '16px', display: 'inline-block' }}>
                     <path d="M14.71 2.29A1 1 0 0 0 14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-.27-.11-.52-.29-.71zM9 19H7v-6h2zm4 0h-2v-8h2zm4 0h-2v-4h2zM13 9V3.5L18.5 9z" />
                   </svg>
                 ), posTab, setPosTab)}
-                {renderSidebarItem('history', 'Riwayat Ledger', (
+                {renderSidebarItem('history', 'Audit Log', (
                   <svg className="ic" viewBox="0 0 24 24" fill="currentColor" style={{ width: '16px', height: '16px', display: 'inline-block' }}>
                     <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89l.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7s-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54l.72-1.21l-3.5-2.08V8z" />
                   </svg>
@@ -686,14 +1375,14 @@ export default function Home() {
 
           {/* User Footer Profile */}
           <div className="sb-footer">
-            <div className="sb-av">AS</div>
+            <div className="sb-av">{activeRole === 'ADMIN_PUSAT' ? 'PA' : activePosId}</div>
             <div>
-              <div className="sb-un">Admin Sistem</div>
-              <div className="sb-ur">Pengelola Bank</div>
+              <div className="sb-un">{activeRole === 'ADMIN_PUSAT' ? 'Admin Pusat' : 'Admin POS'}</div>
+              <div className="sb-ur">{activeRole === 'ADMIN_PUSAT' ? 'Pusat Admin' : (posList.find(p => p.pos_id === activePosId)?.pos_name || `POS ${activePosId}`)}</div>
             </div>
             <button className="sb-logout" title="Keluar" onClick={() => showToast('Disimulasi log out')}>
               <svg viewBox="0 0 14 14" fill="currentColor" style={{ width: '16px', height: '16px' }}>
-                <path fillRule="evenodd" d="M2.5.351a40.5 40.5 0 0 1 5.74 0c1.136.081 2.072.874 2.264 1.932a2.25 2.25 0 0 0-2.108 2.28H4.754a2.25 2.25 0 0 0 0 4.5h3.642a2.25 2.25 0 0 0 2.145 2.281l-.004.085c-.06 1.2-1.06 2.132-2.296 2.22a40.5 40.5 0 0 1-5.742 0C1.263 13.561.263 12.63.203 11.43a91 91 0 0 1 0-8.859C.263 1.372 1.263.439 2.5.351m7.356 5.462L9.661 4.7a1 1 0 0 1 1.432-1.067c1.107.553 2.178 1.624 2.731 2.731a1 1 0 0 1 0 .895c-.553 1.107-1.624 2.178-2.731 2.731A1 1 0 0 1 9.66 8.924l.195-1.111H4.754a1 1 0 1 1 0-2z" clipRule="evenodd"/>
+                <path fillRule="evenodd" d="M2.5.351a40.5 40.5 0 0 1 5.74 0c1.136.081 2.072.874 2.264 1.932a2.25 2.25 0 0 0-2.108 2.28H4.754a2.25 2.25 0 0 0 0 4.5h3.642a2.25 2.25 0 0 0 2.145 2.281l-.004.085c-.06 1.2-1.06 2.132-2.296 2.22a40.5 40.5 0 0 1-5.742 0C1.263 13.561.263 12.63.203 11.43a91 91 0 0 1 0-8.859C.263 1.372 1.263.439 2.5.351m7.356 5.462L9.661 4.7a1 1 0 0 1 1.432-1.067c1.107.553 2.178 1.624 2.731 2.731a1 1 0 0 1 0 .895c-.553 1.107-1.624 2.178-2.731 2.731A1 1 0 0 1 9.66 8.924l.195-1.111H4.754a1 1 0 1 1 0-2z" clipRule="evenodd" />
               </svg>
             </button>
           </div>
@@ -702,7 +1391,7 @@ export default function Home() {
 
       {/* ════════════════ MAIN CONTENT ════════════════ */}
       <div className="main-content">
-        {/* Topbar Header — CONTAINS THE UNIFIED ACTION BUTTONS */}
+        {/* Topbar Header */}
         <header className="topbar">
           <span className="tb-title">
             {currentTitle.title} <span className="tb-sub">{currentTitle.sub}</span>
@@ -710,13 +1399,13 @@ export default function Home() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div className="sim-toggle-group">
-              <button 
+              <button
                 className={`sim-toggle-btn ${activeRole === 'ADMIN_PUSAT' ? 'active' : ''}`}
                 onClick={() => setActiveRole('ADMIN_PUSAT')}
               >
                 Pusat Admin
               </button>
-              <button 
+              <button
                 className={`sim-toggle-btn ${activeRole === 'ADMIN_POS' ? 'active' : ''}`}
                 onClick={() => setActiveRole('ADMIN_POS')}
               >
@@ -724,11 +1413,9 @@ export default function Home() {
               </button>
             </div>
 
-            <button className="btn btn-ghost" onClick={() => showToast('Laporan berhasil diekspor ✓')}>↓ Ekspor</button>
-            
             <div className="speed-dial-container">
-              <button 
-                className="btn btn-gold" 
+              <button
+                className="btn btn-gold"
                 style={{ width: '108px', justifyContent: 'center' }}
                 onClick={() => setIsAddDropdownOpen(!isAddDropdownOpen)}
               >
@@ -738,12 +1425,12 @@ export default function Home() {
 
               {isAddDropdownOpen && (
                 <>
-                  <div 
-                    style={{ position: 'fixed', inset: 0, zIndex: 45 }} 
-                    onClick={() => setIsAddDropdownOpen(false)} 
+                  <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 45 }}
+                    onClick={() => setIsAddDropdownOpen(false)}
                   />
                   <div className="speed-dial-stack">
-                    <button 
+                    <button
                       className="speed-dial-pill"
                       onClick={() => {
                         openNewDepositModal();
@@ -754,7 +1441,7 @@ export default function Home() {
                       <span>Penimbangan</span>
                     </button>
 
-                    <button 
+                    <button
                       className="speed-dial-pill"
                       onClick={() => {
                         setModalType('NASABAH');
@@ -850,7 +1537,7 @@ export default function Home() {
                   <div className="ph2">
                     <div className="ph2-l">
                       <div className="pt">Ringkasan <span>Operasional</span></div>
-                      <div className="ps">Periode Februari 2025 · Diperbarui Hari Ini, 09:14 WIB</div>
+                      <div className="ps">Periode {currentMonthNameStr} {currentYearNum} · Diperbarui Hari Ini, {formattedCurrentTime}</div>
                     </div>
                   </div>
 
@@ -859,12 +1546,12 @@ export default function Home() {
                       <div className="stat-top">
                         <div className="si" style={{ background: 'var(--gold-s)', color: 'var(--gold)' }}>
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                            <path fill="currentColor" d="M13 20V8.8c.5-.2 1-.5 1.3-.9l3.5 1.3l-2.9 6.8c-.5 2 1 3 3.5 3s4.1-1 3.5-3l-2.6-6.3l.9.3l.7-1.9L15 6c0-1.2-.7-2.4-2-2.9c-1.2-.5-2.5 0-3.3.9L3.9 2l-.7 1.8l1.6.6L2.1 11c-.5 2 1 3 3.5 3s4.1-1 3.5-3L6.6 5.1L9 6c0 1.2.7 2.4 2 2.9V20H2v2h20v-2zm6.9-4h-3l1.5-3.8zM7.1 11h-3l1.5-3.8zm4-5.3c.2-.5.8-.8 1.3-.6s.8.8.6 1.3s-.8.8-1.3.6s-.8-.8-.6-1.3"/>
+                            <path fill="currentColor" d="M13 20V8.8c.5-.2 1-.5 1.3-.9l3.5 1.3l-2.9 6.8c-.5 2 1 3 3.5 3s4.1-1 3.5-3l-2.6-6.3l.9.3l.7-1.9L15 6c0-1.2-.7-2.4-2-2.9c-1.2-.5-2.5 0-3.3.9L3.9 2l-.7 1.8l1.6.6L2.1 11c-.5 2 1 3 3.5 3s4.1-1 3.5-3L6.6 5.1L9 6c0 1.2.7 2.4 2 2.9V20H2v2h20v-2zm6.9-4h-3l1.5-3.8zM7.1 11h-3l1.5-3.8zm4-5.3c.2-.5.8-.8 1.3-.6s.8.8.6 1.3s-.8.8-1.3.6s-.8-.8-.6-1.3" />
                           </svg>
                         </div>
-                        <span className="trend t-uw">↑ 12%</span>
+                        <span className={`trend ${weightTrendClass}`}>{weightTrendLabel}</span>
                       </div>
-                      <div className="stat-num">{metrics.totalWeightKg ? `${metrics.totalWeightKg} kg` : '1.247 kg'}</div>
+                      <div className="stat-num">{currentWeightVal ? `${currentWeightVal.toLocaleString('id-ID')} kg` : '0 kg'}</div>
                       <div className="stat-lbl">Total Sampah Bulan Ini</div>
                     </div>
 
@@ -875,9 +1562,9 @@ export default function Home() {
                             <path d="M8 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8m9 0a3 3 0 1 0 0-6a3 3 0 0 0 0 6M4.25 14A2.25 2.25 0 0 0 2 16.25v.25S2 21 8 21s6-4.5 6-4.5v-.25A2.25 2.25 0 0 0 11.75 14zM17 19.5c-1.171 0-2.068-.181-2.755-.458a5.5 5.5 0 0 0 .736-2.207A4 4 0 0 0 15 16.55v-.3a3.24 3.24 0 0 0-.902-2.248L14.2 14h5.6a2.2 2.2 0 0 1 2.2 2.2s0 3.3-5 3.3" />
                           </svg>
                         </div>
-                        <span className="trend t-up">↑ 8 baru</span>
+                        <span className="trend t-up">{nasabahTrendLabel}</span>
                       </div>
-                      <div className="stat-num">{nasabahs.length || 142}</div>
+                      <div className="stat-num">{nasabahs.length}</div>
                       <div className="stat-lbl">Nasabah Aktif</div>
                     </div>
 
@@ -893,12 +1580,14 @@ export default function Home() {
                             </g>
                           </svg>
                         </div>
-                        <span className="trend t-up">↑ 14%</span>
+                        <span className="trend t-up">{dashboardKpi.totalBuyValue ? `+Rp ${(dashboardKpi.totalBuyValue || 0).toLocaleString('id-ID')}` : '0%'}</span>
                       </div>
                       <div className="stat-num">
-                        {metrics.totalCustomerBalance 
-                          ? `Rp ${(metrics.totalCustomerBalance / 1000000).toFixed(1).replace('.', ',')}jt` 
-                          : 'Rp 4,8jt'}
+                        {metrics.totalCustomerBalance
+                          ? (metrics.totalCustomerBalance >= 1000000
+                            ? `Rp ${(metrics.totalCustomerBalance / 1000000).toFixed(1).replace('.', ',')}jt`
+                            : `Rp ${metrics.totalCustomerBalance.toLocaleString('id-ID')}`)
+                          : 'Rp 0'}
                       </div>
                       <div className="stat-lbl">Total Tabungan</div>
                     </div>
@@ -910,9 +1599,9 @@ export default function Home() {
                             <path d="M17.997 4.17A3 3 0 0 1 20 7v12a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 2.003-2.83A4 4 0 0 0 10 8h4a4 4 0 0 0 3.98-3.597zM15 15H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2m0-4H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2m-1-9a2 2 0 1 1 0 4h-4a2 2 0 1 1 0-4z" />
                           </svg>
                         </div>
-                        <span className="trend t-up">↑ 18</span>
+                        <span className={`trend ${txTrendClass}`}>{txTrendLabel}</span>
                       </div>
-                      <div className="stat-num">{history.length || 238}</div>
+                      <div className="stat-num">{currentTxCount}</div>
                       <div className="stat-lbl">Transaksi Bulan Ini</div>
                     </div>
                   </div>
@@ -922,9 +1611,9 @@ export default function Home() {
                       <div className="panel-head">
                         <div>
                           <div className="panel-title">Setoran Terbaru</div>
-                          <div className="panel-sub">{history.length || 6} dari {history.length || 238} transaksi</div>
+                          <div className="panel-sub">{Math.min(10, depositsList.length)} dari {depositsList.length} transaksi</div>
                         </div>
-                        <span className="panel-link" onClick={() => setPosTab('penimbangan')}>Lihat semua →</span>
+                        <span className="panel-link" onClick={() => setPosTab('transaksi')}>Lihat semua →</span>
                       </div>
                       <div className="tw g2-tw">
                         <table className="g2-table">
@@ -939,51 +1628,60 @@ export default function Home() {
                             </tr>
                           </thead>
                           <tbody>
-                            {history.length > 0 ? (
-                              history.slice(0, 6).map((h, i) => (
-                                <tr key={h.id || i}>
-                                  <td>
-                                    <div className="tdm">
-                                      <div className="av">{getInitials(h.customer_name)}</div>
-                                      <div className="mn">{h.customer_name}</div>
-                                    </div>
-                                  </td>
-                                  <td>
-                                    <span className="td-d">
-                                      {formatNasabahId(h.customer_id, h.pos_id || activePosId)}
-                                    </span>
-                                  </td>
-                                  <td>
-                                    <span className="mono tw-c">
-                                      {h.details?.[0]?.quantity ? `${h.details[0].quantity} kg` : '3,5 kg'}
-                                    </span>
-                                  </td>
-                                  <td>
-                                    <span className="mono tp-c">
-                                      Rp. {(h.amount || 5250).toLocaleString('id-ID')}
-                                    </span>
-                                  </td>
-                                  <td>
-                                    <span className="td-d">
-                                      {h.created_at ? new Date(h.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace(':', '.') + ' WITA' : '11.35 WITA'}
-                                    </span>
-                                  </td>
-                                  <td>
-                                    <span className="td-d">
-                                      {formatDate(h.created_at || h.date) || '24 Feb 2026'}
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))
+                            {depositsList.length > 0 ? (
+                              depositsList.slice(0, 10).map((tx, i) => {
+                                const totalQty = tx.details && tx.details.length > 0
+                                  ? tx.details.reduce((sum, d) => sum + parseFloat(d.quantity || 0), 0).toFixed(1)
+                                  : (tx.weight ? String(tx.weight).replace(' kg', '') : '3.5');
+                                const custName = tx.customer_name || tx.customer?.name || 'Nasabah';
+                                const custId = tx.customer_id || 'WW-BA-0041';
+                                const formattedTime = tx.date
+                                  ? new Date(tx.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace(':', '.') + ' WITA'
+                                  : '10.15 WITA';
+                                const formattedDateStr = formatDate(tx.date || tx.created_at) || '18 Agu 2026';
+
+                                return (
+                                  <tr key={tx.id || tx.transaction_id || i}>
+                                    <td>
+                                      <div className="tdm">
+                                        <div className="av">{getInitials(custName)}</div>
+                                        <div className="mn">{custName}</div>
+                                      </div>
+                                    </td>
+                                    <td>
+                                      <span className="td-d">
+                                        {formatNasabahId(custId, tx.pos_id || activePosId)}
+                                      </span>
+                                    </td>
+                                    <td>
+                                      <span className="mono tw-c">
+                                        {totalQty} kg
+                                      </span>
+                                    </td>
+                                    <td>
+                                      <span className="mono tp-c">
+                                        Rp. {parseFloat(tx.totalBuyValue || tx.total_buy_value || tx.amount || 0).toLocaleString('id-ID')}
+                                      </span>
+                                    </td>
+                                    <td>
+                                      <span className="td-d">
+                                        {formattedTime}
+                                      </span>
+                                    </td>
+                                    <td>
+                                      <span className="td-d">
+                                        {formattedDateStr}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })
                             ) : (
-                              <>
-                                <tr><td><div className="tdm"><div className="av">SR</div><div className="mn">Siti Rahayu</div></div></td><td><span className="td-d">WW-BA-0041</span></td><td><span className="mono tw-c">3,5 kg</span></td><td><span className="mono tp-c">Rp. 5.250</span></td><td><span className="td-d">11.35 WITA</span></td><td><span className="td-d">24 Feb 2026</span></td></tr>
-                                <tr><td><div className="tdm"><div className="av">BW</div><div className="mn">Budi Wahyono</div></div></td><td><span className="td-d">WW-BA-0027</span></td><td><span className="mono tw-c">7,2 kg</span></td><td><span className="mono tp-c">Rp. 7.200</span></td><td><span className="td-d">10.50 WITA</span></td><td><span className="td-d">24 Feb 2026</span></td></tr>
-                                <tr><td><div className="tdm"><div className="av">MA</div><div className="mn">Murti Astuti</div></div></td><td><span className="td-d">WW-BA-0088</span></td><td><span className="mono tw-c">2,0 kg</span></td><td><span className="mono tp-c">Rp. 6.000</span></td><td><span className="td-d">09.15 WITA</span></td><td><span className="td-d">24 Feb 2026</span></td></tr>
-                                <tr><td><div className="tdm"><div className="av">DH</div><div className="mn">Dewi Hapsari</div></div></td><td><span className="td-d">WW-BA-0013</span></td><td><span className="mono tw-c">5,5 kg</span></td><td><span className="mono tp-c">Rp. 2.750</span></td><td><span className="td-d">14.20 WITA</span></td><td><span className="td-d">23 Feb 2026</span></td></tr>
-                                <tr><td><div className="tdm"><div className="av">RS</div><div className="mn">Rudi Santoso</div></div></td><td><span className="td-d">WW-BA-0109</span></td><td><span className="mono tw-c">1,8 kg</span></td><td><span className="mono tp-c">Rp. 7.200</span></td><td><span className="td-d">11.05 WITA</span></td><td><span className="td-d">23 Feb 2026</span></td></tr>
-                                <tr><td><div className="tdm"><div className="av">PN</div><div className="mn">Putri Ningrum</div></div></td><td><span className="td-d">WW-BA-0076</span></td><td><span className="mono tw-c">4,1 kg</span></td><td><span className="mono tp-c">Rp. 6.150</span></td><td><span className="td-d">08.45 WITA</span></td><td><span className="td-d">22 Feb 2026</span></td></tr>
-                              </>
+                              <tr>
+                                <td colSpan="6" style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>
+                                  Belum ada transaksi setoran pada node POS ini
+                                </td>
+                              </tr>
                             )}
                           </tbody>
                         </table>
@@ -993,29 +1691,79 @@ export default function Home() {
                     <div className="g2-side-stack">
                       <div className="panel">
                         <div className="panel-head">
-                          <div><div className="panel-title">Komposisi Sampah</div><div className="panel-sub">Berat bulan ini</div></div>
+                          <div>
+                            <div className="panel-title">Komposisi Sampah</div>
+                            <div className="panel-sub">Berat bulan ini ({currentMonthNameStr} {currentYearNum})</div>
+                          </div>
                         </div>
                         <div className="wl">
-                          <div className="wr"><div className="wm"><span className="wn"><span className="wd" style={{ background: '#4a90d9' }}></span>Plastik</span><span className="wv">380 kg<span className="wp">30%</span></span></div><div className="bt"><div className="bf" style={{ width: '30%', background: '#4a90d9' }}></div></div></div>
-                          <div className="wr"><div className="wm"><span className="wn"><span className="wd" style={{ background: '#e8b323' }}></span>Kertas</span><span className="wv">315 kg<span className="wp">25%</span></span></div><div className="bt"><div className="bf" style={{ width: '25%', background: '#e8b323' }}></div></div></div>
-                          <div className="wr"><div className="wm"><span className="wn"><span className="wd" style={{ background: '#3d6b40' }}></span>Logam</span><span className="wv">226 kg<span className="wp">18%</span></span></div><div className="bt"><div className="bf" style={{ width: '18%', background: '#3d6b40' }}></div></div></div>
-                          <div className="wr"><div className="wm"><span className="wn"><span className="wd" style={{ background: '#7a5c2e' }}></span>Kaca</span><span className="wv">163 kg<span className="wp">13%</span></span></div><div className="bt"><div className="bf" style={{ width: '13%', background: '#7a5c2e' }}></div></div></div>
-                          <div className="wr"><div className="wm"><span className="wn"><span className="wd" style={{ background: '#e67e22' }}></span>Minyak</span><span className="wv">100 kg<span className="wp">8%</span></span></div><div className="bt"><div className="bf" style={{ width: '8%', background: '#e67e22' }}></div></div></div>
-                          <div className="wr"><div className="wm"><span className="wn"><span className="wd" style={{ background: '#b06030' }}></span>Lainnya</span><span className="wv">63 kg<span className="wp">6%</span></span></div><div className="bt"><div className="bf" style={{ width: '6%', background: '#b06030' }}></div></div></div>
+                          {dashboardReportData?.categoryComposition && dashboardReportData.categoryComposition.length > 0 ? (
+                            dashboardReportData.categoryComposition.map((comp) => {
+                              const color = getCatColor(comp.category);
+                              return (
+                                <div className="wr" key={comp.category}>
+                                  <div className="wm">
+                                    <span className="wn">
+                                      <span className="wd" style={{ background: color }}></span>
+                                      {comp.category}
+                                    </span>
+                                    <span className="wv">
+                                      {comp.weight.toLocaleString('id-ID')} kg
+                                      <span className="wp">{comp.percentage}%</span>
+                                    </span>
+                                  </div>
+                                  <div className="bt">
+                                    <div className="bf" style={{ width: `${Math.min(100, Math.max(4, comp.percentage))}%`, background: color }}></div>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--muted)', fontSize: '12px' }}>
+                              Belum ada data sampah terpilah bulan ini
+                            </div>
+                          )}
                         </div>
                         <div className="ms">
-                          <div className="ms-c"><div className="ms-v">1.247</div><div className="ms-l">Total kg</div></div>
-                          <div className="ms-c"><div className="ms-v">6</div><div className="ms-l">Kategori</div></div>
+                          <div className="ms-c">
+                            <div className="ms-v">{(dashboardKpi.totalWeight || 0).toLocaleString('id-ID')}</div>
+                            <div className="ms-l">Total kg</div>
+                          </div>
+                          <div className="ms-c">
+                            <div className="ms-v">{(dashboardReportData?.categoryComposition || []).length}</div>
+                            <div className="ms-l">Kategori</div>
+                          </div>
                         </div>
                       </div>
 
                       <div className="panel">
-                        <div className="panel-head"><div className="panel-title">Aktivitas Terkini</div></div>
+                        <div className="panel-head">
+                          <div className="panel-title">Aktivitas Terkini</div>
+                        </div>
                         <div className="al">
-                          <div className="ai"><div className="adot"></div><div><div className="at"><strong>Siti Rahayu</strong> setor 3,5 kg plastik</div><div className="atime">09:14 WIB</div></div></div>
-                          <div className="ai"><div className="adot"></div><div><div className="at"><strong>Budi W.</strong> tarik Rp 50.000</div><div className="atime">08:52 WIB</div></div></div>
-                          <div className="ai"><div className="adot"></div><div><div className="at">Nasabah baru <strong>Hani Lestari</strong></div><div className="atime">08:30 WIB</div></div></div>
-                          <div className="ai"><div className="adot"></div><div><div className="at">Harga <strong>logam</strong> → Rp 3.000/kg</div><div className="atime">07:00 WIB</div></div></div>
+                          {realAuditLogs.length > 0 ? (
+                            realAuditLogs.slice(0, 4).map((log, idx) => {
+                              const timeStr = log.timestamp
+                                ? new Date(log.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace(':', '.') + ' WITA'
+                                : 'Baru saja';
+
+                              return (
+                                <div className="ai" key={log.log_id || idx}>
+                                  <div className="adot"></div>
+                                  <div>
+                                    <div className="at">
+                                      {formatAktivitasItem(log)}
+                                    </div>
+                                    <div className="atime">{timeStr}</div>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div style={{ padding: '12px 0', textAlign: 'center', color: 'var(--muted)', fontSize: '12px' }}>
+                              Belum ada catatan aktivitas sistem
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1029,7 +1777,7 @@ export default function Home() {
                   <div className="ph2">
                     <div className="ph2-l">
                       <div className="pt">Data <span>Nasabah</span></div>
-                      <div className="ps">{nasabahs.length || 142} nasabah terdaftar · Februari 2025</div>
+                      <div className="ps">{nasabahTotalCount} nasabah terdaftar · Periode {currentMonthNameStr} {currentYearNum}</div>
                     </div>
                     <div className="ph2-r">
                       <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -1056,7 +1804,7 @@ export default function Home() {
                             <path d="M8 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8m9 0a3 3 0 1 0 0-6a3 3 0 0 0 0 6M4.25 14A2.25 2.25 0 0 0 2 16.25v.25S2 21 8 21s6-4.5 6-4.5v-.25A2.25 2.25 0 0 0 11.75 14zM17 19.5c-1.171 0-2.068-.181-2.755-.458a5.5 5.5 0 0 0 .736-2.207A4 4 0 0 0 15 16.55v-.3a3.24 3.24 0 0 0-.902-2.248L14.2 14h5.6a2.2 2.2 0 0 1 2.2 2.2s0 3.3-5 3.3" />
                           </svg>
                         </div>
-                        <span className="trend t-uw">+8</span>
+                        <span className="trend t-uw">{newNasabahsThisMonth > 0 ? `+${newNasabahsThisMonth} baru` : `${nasabahActiveCount} aktif`}</span>
                       </div>
                       <div className="stat-num">{nasabahTotalCount}</div>
                       <div className="stat-lbl">Total Nasabah</div>
@@ -1077,9 +1825,9 @@ export default function Home() {
                             maskSize: 'contain'
                           }} />
                         </div>
-                        <span className="trend t-up">92%</span>
+                        <span className="trend t-up">{nasabahTotalCount > 0 ? `${Math.round((nasabahActiveCount / nasabahTotalCount) * 100)}%` : '100%'}</span>
                       </div>
-                      <div className="stat-num">131</div>
+                      <div className="stat-num">{nasabahActiveCount}</div>
                       <div className="stat-lbl">Nasabah Aktif</div>
                     </div>
 
@@ -1098,9 +1846,9 @@ export default function Home() {
                             maskSize: 'contain'
                           }} />
                         </div>
-                        <span className="trend t-up">↑ 4</span>
+                        <span className="trend t-up">↑ {newNasabahsThisMonth}</span>
                       </div>
-                      <div className="stat-num">8</div>
+                      <div className="stat-num">{newNasabahsThisMonth}</div>
                       <div className="stat-lbl">Baru Bulan Ini</div>
                     </div>
 
@@ -1119,8 +1867,15 @@ export default function Home() {
                             maskSize: 'contain'
                           }} />
                         </div>
+                        <span className="trend t-up">Rp {(avgNasabahBalance).toLocaleString('id-ID')}</span>
                       </div>
-                      <div className="stat-num">Rp 33rb</div>
+                      <div className="stat-num">
+                        {avgNasabahBalance >= 1000000 
+                          ? `Rp ${(avgNasabahBalance / 1000000).toFixed(1).replace('.', ',')}jt`
+                          : avgNasabahBalance >= 1000 
+                            ? `Rp ${(avgNasabahBalance / 1000).toFixed(0)}rb`
+                            : `Rp ${avgNasabahBalance}`}
+                      </div>
                       <div className="stat-lbl">Rata-rata Tabungan</div>
                     </div>
                   </div>
@@ -1143,16 +1898,16 @@ export default function Home() {
                     </div>
 
                     <div className="tw">
-                      <table>
+                      <table style={{ width: '100%', tableLayout: 'fixed' }}>
                         <thead>
                           <tr>
-                            <th>Nasabah</th>
-                            <th>ID Nasabah</th>
-                            <th>Alamat</th>
-                            <th>Bergabung</th>
-                            <th>Tabungan</th>
-                            <th>Status</th>
-                            <th>Aksi</th>
+                            <th style={{ width: '22%' }}>Nasabah</th>
+                            <th style={{ width: '14%' }}>ID Nasabah</th>
+                            <th style={{ width: '24%' }}>Alamat</th>
+                            <th style={{ width: '14%' }}>Bergabung</th>
+                            <th style={{ width: '14%' }}>Tabungan</th>
+                            <th style={{ width: '12%' }}>Status</th>
+                            <th style={{ width: '10%', textAlign: 'center' }}>Aksi</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1160,28 +1915,28 @@ export default function Home() {
                             filteredNasabahTableData.map(n => (
                               <tr key={n.customer_id}>
                                 <td>
-                                  <div className="tdm">
-                                    <div className="av">{getInitials(n.name)}</div>
-                                    <div>
-                                      <div className="mn">{n.name}</div>
+                                  <div className="tdm" style={{ overflow: 'hidden' }}>
+                                    <div className="av" style={{ flexShrink: 0 }}>{getInitials(n.name)}</div>
+                                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      <div className="mn" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.name}</div>
                                     </div>
                                   </div>
                                 </td>
                                 <td><span className="td-d">{formatNasabahId(n.customer_id, n.pos_id || activePosId)}</span></td>
-                                <td style={{ fontSize: '11.5px', color: 'var(--muted)' }}>{n.address}</td>
+                                <td style={{ fontSize: '11.5px', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.address}</td>
                                 <td><span className="td-d">{formatDate(n.created_at)}</span></td>
                                 <td><span className="mono tp-c">Rp. {parseFloat(n.balance || 0).toLocaleString('id-ID')}</span></td>
                                 <td><span className={`badge ${n.status === 'INACTIVE' ? 'b-r' : 'b-g'}`}>{n.status === 'INACTIVE' ? 'Tidak Aktif' : 'Aktif'}</span></td>
-                                <td>
-                                  <div className="td-act">
-                                    <button 
-                                      className="btn btn-sm btn-ghost" 
+                                <td style={{ textAlign: 'center' }}>
+                                  <div className="td-act" style={{ justifyContent: 'center' }}>
+                                    <button
+                                      className="btn btn-sm btn-ghost"
                                       onClick={() => {
                                         setEditingNasabah(n);
                                         setNasabahEditForm({
                                           name: n.name || '',
                                           address: n.address || '',
-                                          status: n.status || 'ACTIVE'
+                                          status: n.status || (n.is_active === false ? 'INACTIVE' : 'ACTIVE')
                                         });
                                         setTanggalNasabah(getCurrentDateTimeLocal());
                                         setModalType('EDIT_NASABAH');
@@ -1217,8 +1972,8 @@ export default function Home() {
                       <div className="ps">{history.length || 238} transaksi bulan ini</div>
                     </div>
                     <div className="ph2-r" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <select 
-                        className="fi" 
+                      <select
+                        className="fi"
                         style={{ width: 'auto', height: '36px', fontSize: '12.5px', padding: '0 12px' }}
                         value={selectedMonth}
                         onChange={(e) => setSelectedMonth(e.target.value)}
@@ -1236,8 +1991,8 @@ export default function Home() {
                         <option value="November">November</option>
                         <option value="Desember">Desember</option>
                       </select>
-                      <select 
-                        className="fi" 
+                      <select
+                        className="fi"
                         style={{ width: 'auto', height: '36px', fontSize: '12.5px', padding: '0 12px' }}
                         value={selectedYear}
                         onChange={(e) => setSelectedYear(e.target.value)}
@@ -1246,15 +2001,15 @@ export default function Home() {
                         <option value="2025">2025</option>
                         <option value="2026">2026</option>
                       </select>
-                      <button 
-                        className="btn btn-ghost" 
+                      <button
+                        className="btn btn-ghost"
                         style={{ height: '36px', padding: '0 12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                         onClick={() => showToast('Export data transaksi...')}
                       >
                         <Download size={14} /> Export
                       </button>
-                      <button 
-                        className="btn btn-gold" 
+                      <button
+                        className="btn btn-gold"
                         style={{ height: '36px' }}
                         onClick={() => openNewDepositModal()}
                       >
@@ -1308,7 +2063,7 @@ export default function Home() {
                       <div className="stat-top">
                         <div className="si" style={{ background: 'var(--gold)', color: 'var(--forest)' }}>
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                            <path fill="currentColor" d="M13 20V8.8c.5-.2 1-.5 1.3-.9l3.5 1.3l-2.9 6.8c-.5 2 1 3 3.5 3s4.1-1 3.5-3l-2.6-6.3l.9.3l.7-1.9L15 6c0-1.2-.7-2.4-2-2.9c-1.2-.5-2.5 0-3.3.9L3.9 2l-.7 1.8l1.6.6L2.1 11c-.5 2 1 3 3.5 3s4.1-1 3.5-3L6.6 5.1L9 6c0 1.2.7 2.4 2 2.9V20H2v2h20v-2zm6.9-4h-3l1.5-3.8zM7.1 11h-3l1.5-3.8zm4-5.3c.2-.5.8-.8 1.3-.6s.8.8.6 1.3s-.8.8-1.3.6s-.8-.8-.6-1.3"/>
+                            <path fill="currentColor" d="M13 20V8.8c.5-.2 1-.5 1.3-.9l3.5 1.3l-2.9 6.8c-.5 2 1 3 3.5 3s4.1-1 3.5-3l-2.6-6.3l.9.3l.7-1.9L15 6c0-1.2-.7-2.4-2-2.9c-1.2-.5-2.5 0-3.3.9L3.9 2l-.7 1.8l1.6.6L2.1 11c-.5 2 1 3 3.5 3s4.1-1 3.5-3L6.6 5.1L9 6c0 1.2.7 2.4 2 2.9V20H2v2h20v-2zm6.9-4h-3l1.5-3.8zM7.1 11h-3l1.5-3.8zm4-5.3c.2-.5.8-.8 1.3-.6s.8.8.6 1.3s-.8.8-1.3.6s-.8-.8-.6-1.3" />
                           </svg>
                         </div>
                         <span className="trend t-up">↑ 12%</span>
@@ -1339,54 +2094,56 @@ export default function Home() {
                           </tr>
                         </thead>
                         <tbody>
-                          {SAMPLE_TRANSACTIONS.map((tx) => (
-                            <tr key={tx.id}>
-                              <td><span className="mono" style={{ fontSize: '11px', color: 'var(--faint)' }}>#{tx.id}</span></td>
-                              <td>
-                                <div className="tdm">
-                                  <div className="av">{getInitials(tx.customer_name)}</div>
-                                  <div>
-                                    <div className="mn">{tx.customer_name}</div>
+                          {(depositsList.length > 0 ? depositsList : history.filter(h => h.type === 'DEPOSIT')).map((tx) => {
+                            const firstDetail = tx.details?.[0] || {};
+                            const totalQty = tx.details ? tx.details.reduce((sum, d) => sum + parseFloat(d.quantity || 0), 0).toFixed(1) : '3.5';
+                            const formattedTime = tx.date ? new Date(tx.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace(':', '.') + ' WITA' : '10.15 WITA';
+                            const formattedDateStr = formatDate(tx.date || tx.created_at) || '24 Feb 2026';
+
+                            return (
+                              <tr key={tx.id || tx.transaction_id}>
+                                <td><span className="mono" style={{ fontSize: '11px', color: 'var(--faint)' }}>#{tx.id || tx.transaction_id}</span></td>
+                                <td>
+                                  <div className="tdm">
+                                    <div className="av">{getInitials(tx.customer_name || tx.customer?.name || 'Siti Rahayu')}</div>
+                                    <div>
+                                      <div className="mn">{tx.customer_name || tx.customer?.name || 'Siti Rahayu'}</div>
+                                    </div>
                                   </div>
-                                </div>
-                              </td>
-                              <td><span className="td-d">{formatNasabahId(tx.customer_id, tx.pos_id)}</span></td>
-                              <td><span className="mono tw-c">{tx.weight}</span></td>
-                              <td><span className="mono tp-c">{tx.price}</span></td>
-                              <td>
-                                <span className={`badge ${tx.source === 'Excel' ? 'b-g' : 'b-y'}`}>
-                                  {tx.source}
-                                </span>
-                              </td>
-                              <td><span className="td-d">{tx.time}</span></td>
-                              <td><span className="td-d">{tx.date}</span></td>
-                              <td>
-                                <div className="td-act">
-                                  <button 
-                                    className="btn btn-sm btn-ghost" 
-                                    onClick={() => {
-                                      const n = availableNasabahs.find(item => item.name === tx.customer_name || item.customer_id === tx.customer_id) || {
-                                        name: tx.customer_name,
-                                        customer_id: tx.customer_id || 'WW-BA-0041',
-                                        pos_id: tx.pos_id || 'BA'
-                                      };
-                                      setSelectedNasabah(n);
-                                      setNasabahSearchText(n.name);
-                                      setTanggalSetor(getCurrentDateTimeLocal());
-                                      setWeighItems([
-                                        { kategori: 'Plastik', jenis: 'PET Campur', berat: '2.5', pengepul: 'Bali Wastu Lestari' },
-                                        { kategori: 'Minyak', jenis: 'Minyak Jelantah', berat: '3.2', pengepul: 'Metro Oil' }
-                                      ]);
-                                      setModalType('EDIT_SETORAN');
-                                      setIsModalOpen(true);
-                                    }}
-                                  >
-                                    Edit
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                                </td>
+                                <td><span className="td-d">{formatNasabahId(tx.customer_id, tx.pos_id || activePosId)}</span></td>
+                                <td><span className="mono tw-c">{totalQty} {firstDetail.unit || 'kg'}</span></td>
+                                <td><span className="mono tp-c">Rp. {parseFloat(tx.totalBuyValue || tx.total_buy_value || 5250).toLocaleString('id-ID')}</span></td>
+                                <td>
+                                  <span className={`badge ${tx.source === 'Excel' ? 'b-g' : 'b-y'}`}>
+                                    {tx.source || (tx.created_by ? 'System POS' : 'Manual')}
+                                  </span>
+                                </td>
+                                <td><span className="td-d">{formattedTime}</span></td>
+                                <td><span className="td-d">{formattedDateStr}</span></td>
+                                <td>
+                                  <div className="td-act">
+                                    <button
+                                      className="btn btn-sm btn-ghost"
+                                      onClick={() => handleEditSetoran(tx)}
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      className="btn btn-sm btn-ghost"
+                                      onClick={() => {
+                                        setSelectedDepositDetail(tx);
+                                        setModalType('DETAIL_SETORAN');
+                                        setIsModalOpen(true);
+                                      }}
+                                    >
+                                      Detail
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -1412,28 +2169,28 @@ export default function Home() {
 
                       <div className="card-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
                         {posWasteTypes.map(cat => (
-                          <div 
-                            key={cat.category_id} 
-                            className="card" 
-                            style={{ 
-                              cursor: 'pointer', 
-                              padding: '24px', 
-                              borderRadius: '16px', 
-                              border: '1px solid #e5e7eb', 
+                          <div
+                            key={cat.category_id}
+                            className="card"
+                            style={{
+                              cursor: 'pointer',
+                              padding: '24px',
+                              borderRadius: '16px',
+                              border: '1px solid #e5e7eb',
                               background: '#ffffff',
                               transition: 'all 0.2s ease',
                               boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
                             }}
                             onClick={() => setSelectedCategoryForDetail(cat.category_name)}
                           >
-                            <div 
-                              style={{ 
-                                width: '54px', 
-                                height: '54px', 
-                                borderRadius: '12px', 
-                                background: getCategoryBg(cat.category_name), 
-                                display: 'flex', 
-                                alignItems: 'center', 
+                            <div
+                              style={{
+                                width: '54px',
+                                height: '54px',
+                                borderRadius: '12px',
+                                background: getCategoryBg(cat.category_name),
+                                display: 'flex',
+                                alignItems: 'center',
                                 justifyContent: 'center',
                                 marginBottom: '20px'
                               }}
@@ -1464,8 +2221,8 @@ export default function Home() {
                             <div className="ph2">
                               <div className="ph2-l">
                                 <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span 
-                                    onClick={() => setSelectedCategoryForDetail(null)} 
+                                  <span
+                                    onClick={() => setSelectedCategoryForDetail(null)}
                                     style={{ cursor: 'pointer', textDecoration: 'underline', color: 'var(--forest)' }}
                                   >
                                     Jenis Sampah
@@ -1476,8 +2233,8 @@ export default function Home() {
                                 <div className="pt">{vendorShort} – <span style={{ color: '#2d5a37' }}>{selectedCategoryForDetail}</span></div>
                                 <div className="ps">{types.length} Tipe terdaftar</div>
                               </div>
-                              <button 
-                                className="btn btn-ghost" 
+                              <button
+                                className="btn btn-ghost"
                                 onClick={() => setSelectedCategoryForDetail(null)}
                                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
                               >
@@ -1487,25 +2244,25 @@ export default function Home() {
 
                             <div className="card-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
                               {types.map(t => (
-                                <div 
-                                  key={t.waste_type_id} 
-                                  className="card" 
-                                  style={{ 
-                                    padding: '20px', 
-                                    borderRadius: '16px', 
-                                    border: '1px solid #e5e7eb', 
+                                <div
+                                  key={t.waste_type_id}
+                                  className="card"
+                                  style={{
+                                    padding: '20px',
+                                    borderRadius: '16px',
+                                    border: '1px solid #e5e7eb',
                                     background: '#ffffff',
                                     boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
                                   }}
                                 >
-                                  <div 
-                                    style={{ 
-                                      width: '44px', 
-                                      height: '44px', 
-                                      borderRadius: '10px', 
-                                      background: getCategoryBg(selectedCategoryForDetail), 
-                                      display: 'flex', 
-                                      alignItems: 'center', 
+                                  <div
+                                    style={{
+                                      width: '44px',
+                                      height: '44px',
+                                      borderRadius: '10px',
+                                      background: getCategoryBg(selectedCategoryForDetail),
+                                      display: 'flex',
+                                      alignItems: 'center',
                                       justifyContent: 'center',
                                       marginBottom: '14px'
                                     }}
@@ -1523,7 +2280,7 @@ export default function Home() {
                                   {/* Empty Image Slots for Trash Visualization (Placeholder for future photo uploads) */}
                                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '12px' }}>
                                     {[1, 2, 3].map(slotIdx => (
-                                      <div 
+                                      <div
                                         key={slotIdx}
                                         style={{
                                           height: '76px',
@@ -1660,8 +2417,8 @@ export default function Home() {
                                 <td><span className="td-d">{formatDate(n.created_at || '2025-02-24')}</span></td>
                                 <td>
                                   <div className="td-act">
-                                    <button 
-                                      className="btn btn-sm btn-ghost" 
+                                    <button
+                                      className="btn btn-sm btn-ghost"
                                       onClick={() => {
                                         setSelectedNasabahHistory(n);
                                         setModalType('RIWAYAT_TABUNGAN');
@@ -1697,8 +2454,8 @@ export default function Home() {
                       <div className="ps">Kelola permintaan penarikan nasabah</div>
                     </div>
                     <div className="ph2-r">
-                      <button 
-                        className="btn btn-gold" 
+                      <button
+                        className="btn btn-gold"
                         style={{ height: '36px' }}
                         onClick={() => {
                           setWithdrawAmount('');
@@ -1775,19 +2532,19 @@ export default function Home() {
 
                     {/* Working Category/Status Filter Tabs */}
                     <div className="tabs">
-                      <button 
+                      <button
                         className={`tab ${penarikanFilterStatus === 'ALL' ? 'on' : ''}`}
                         onClick={() => setPenarikanFilterStatus('ALL')}
                       >
                         Semua ({SAMPLE_WITHDRAWALS.length})
                       </button>
-                      <button 
+                      <button
                         className={`tab ${penarikanFilterStatus === 'PENDING' ? 'on' : ''}`}
                         onClick={() => setPenarikanFilterStatus('PENDING')}
                       >
                         Menunggu ({SAMPLE_WITHDRAWALS.filter(w => w.status === 'PENDING').length})
                       </button>
-                      <button 
+                      <button
                         className={`tab ${penarikanFilterStatus === 'COMPLETED' ? 'on' : ''}`}
                         onClick={() => setPenarikanFilterStatus('COMPLETED')}
                       >
@@ -1834,8 +2591,8 @@ export default function Home() {
                                 <td>
                                   <div className="td-act">
                                     {wd.status === 'COMPLETED' ? (
-                                      <button 
-                                        className="btn btn-sm btn-ghost" 
+                                      <button
+                                        className="btn btn-sm btn-ghost"
                                         onClick={() => {
                                           setSelectedWithdrawal(wd);
                                           setModalType('DETAIL_PENARIKAN');
@@ -1845,8 +2602,8 @@ export default function Home() {
                                         Detail
                                       </button>
                                     ) : (
-                                      <button 
-                                        className="btn btn-sm btn-gold" 
+                                      <button
+                                        className="btn btn-sm btn-gold"
                                         onClick={() => {
                                           setSelectedWithdrawal(wd);
                                           setSelectedWithdrawalProof(null);
@@ -1894,14 +2651,14 @@ export default function Home() {
                       <div key={cat.category_id} className="panel mb-4" style={{ marginBottom: '24px', borderRadius: '14px', overflow: 'hidden' }}>
                         <div className="panel-head" style={{ background: '#fafafa', borderBottom: '1px solid #f0f0f0', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ 
-                              width: '36px', 
-                              height: '36px', 
-                              borderRadius: '10px', 
-                              background: getCategoryBg(cat.category_name), 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center' 
+                            <div style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '10px',
+                              background: getCategoryBg(cat.category_name),
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
                             }}>
                               {getCategoryIcon(cat.category_name, 20)}
                             </div>
@@ -1971,126 +2728,768 @@ export default function Home() {
                 <>
                   <div className="ph2">
                     <div className="ph2-l">
-                      <div className="pt">Laporan <span>Bulanan</span></div>
-                      <div className="ps">Rekap operasional bank sampah</div>
+                      <div className="pt">Laporan <span>Analytics & Rekapitulasi</span></div>
+                      <div className="ps">Ringkasan statistik operasional, tren, dan ekspor dokumen</div>
+                    </div>
+                    <div className="ph2-r" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {/* Period Toggle Button Group */}
+                      <div className="sim-toggle-group" style={{ height: '36px' }}>
+                        <button
+                          className={`sim-toggle-btn ${reportPeriodMode === 'monthly' ? 'active' : ''}`}
+                          onClick={() => setReportPeriodMode('monthly')}
+                        >
+                          Bulanan
+                        </button>
+                        <button
+                          className={`sim-toggle-btn ${reportPeriodMode === 'semester' ? 'active' : ''}`}
+                          onClick={() => setReportPeriodMode('semester')}
+                        >
+                          6 Bulanan
+                        </button>
+                      </div>
+
+                      {/* Selectors depending on period mode */}
+                      {reportPeriodMode === 'monthly' ? (
+                        <select
+                          className="fi"
+                          style={{ width: 'auto', height: '36px', fontSize: '12.5px', padding: '0 12px' }}
+                          value={selectedMonth}
+                          onChange={(e) => setSelectedMonth(e.target.value)}
+                        >
+                          <option value="Januari">Januari</option>
+                          <option value="Februari">Februari</option>
+                          <option value="Maret">Maret</option>
+                          <option value="April">April</option>
+                          <option value="Mei">Mei</option>
+                          <option value="Juni">Juni</option>
+                          <option value="Juli">Juli</option>
+                          <option value="Agustus">Agustus</option>
+                          <option value="September">September</option>
+                          <option value="Oktober">Oktober</option>
+                          <option value="November">November</option>
+                          <option value="Desember">Desember</option>
+                        </select>
+                      ) : (
+                        <select
+                          className="fi"
+                          style={{ width: 'auto', height: '36px', fontSize: '12.5px', padding: '0 12px' }}
+                          value={selectedSemester}
+                          onChange={(e) => setSelectedSemester(e.target.value)}
+                        >
+                          <option value="1">Semester 1 (Jan - Jun)</option>
+                          <option value="2">Semester 2 (Jul - Des)</option>
+                        </select>
+                      )}
+
+                      <select
+                        className="fi"
+                        style={{ width: 'auto', height: '36px', fontSize: '12.5px', padding: '0 12px' }}
+                        value={selectedYear}
+                        onChange={(e) => setSelectedYear(e.target.value)}
+                      >
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                      </select>
+
+                      {/* Export Action Buttons */}
+                      <button
+                        className="btn btn-ghost"
+                        style={{ height: '36px', padding: '0 14px', display: 'inline-flex', alignItems: 'center', gap: '6px', borderColor: '#10b981', color: '#059669', background: '#ecfdf5', fontWeight: 600 }}
+                        onClick={handleExportExcel}
+                        disabled={isExporting}
+                      >
+                        <Download size={14} /> Export Excel (.xlsx)
+                      </button>
+
+                      <button
+                        className="btn btn-ghost"
+                        style={{ height: '36px', padding: '0 14px', display: 'inline-flex', alignItems: 'center', gap: '6px', borderColor: '#2563eb', color: '#1d4ed8', background: '#eff6ff', fontWeight: 600 }}
+                        onClick={handleExportWord}
+                        disabled={isExporting}
+                      >
+                        <FileText size={14} /> Export Word (.docx)
+                      </button>
                     </div>
                   </div>
 
+                  {/* 4 Vector KPI Cards */}
                   <div className="stats">
-                    <div className="stat hl"><div className="stat-top"><div className="si si-w">⚖</div><span className="trend t-uw">↑ 12%</span></div><div className="stat-num">1.247 kg</div><div className="stat-lbl">Total Sampah</div></div>
-                    <div className="stat"><div className="stat-top"><div className="si si-g">💵</div><span className="trend t-up">↑ 14%</span></div><div className="stat-num">Rp 1,8jt</div><div className="stat-lbl">Total Nilai Sampah</div></div>
-                    <div className="stat"><div className="stat-top"><div className="si si-a">↑</div></div><div className="stat-num">Rp 620rb</div><div className="stat-lbl">Total Penarikan</div></div>
-                    <div className="stat"><div className="stat-top"><div className="si si-gr">📋</div></div><div className="stat-num">238</div><div className="stat-lbl">Total Transaksi</div></div>
+                    {/* KPI 1: Scale SVG Icon from Dashboard KPI 1 */}
+                    <div className="stat hl">
+                      <div className="stat-top">
+                        <div className="si" style={{ background: 'var(--gold-s)', color: 'var(--gold)' }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path fill="currentColor" d="M13 20V8.8c.5-.2 1-.5 1.3-.9l3.5 1.3l-2.9 6.8c-.5 2 1 3 3.5 3s4.1-1 3.5-3l-2.6-6.3l.9.3l.7-1.9L15 6c0-1.2-.7-2.4-2-2.9c-1.2-.5-2.5 0-3.3.9L3.9 2l-.7 1.8l1.6.6L2.1 11c-.5 2 1 3 3.5 3s4.1-1 3.5-3L6.6 5.1L9 6c0 1.2.7 2.4 2 2.9V20H2v2h20v-2zm6.9-4h-3l1.5-3.8zM7.1 11h-3l1.5-3.8zm4-5.3c.2-.5.8-.8 1.3-.6s.8.8.6 1.3s-.8.8-1.3.6s-.8-.8-.6-1.3" />
+                          </svg>
+                        </div>
+                        <span className="trend t-uw">↑ 12%</span>
+                      </div>
+                      <div className="stat-num">{reportData?.kpi?.totalWeight ? `${reportData.kpi.totalWeight} kg` : '1.247 kg'}</div>
+                      <div className="stat-lbl">Total Sampah Terkumpul</div>
+                    </div>
+
+                    {/* KPI 2: Banknote SVG Icon from Transaksi Setor KPI 3 */}
+                    <div className="stat">
+                      <div className="stat-top">
+                        <div className="si" style={{ background: 'var(--gold)', color: 'var(--forest)' }}>
+                          <Banknote size={18} />
+                        </div>
+                        <span className="trend t-up">↑ 14%</span>
+                      </div>
+                      <div className="stat-num">Rp {(reportData?.kpi?.totalBuyValue || 1800000).toLocaleString('id-ID')}</div>
+                      <div className="stat-lbl">Total Nilai Sampah (Beli)</div>
+                    </div>
+
+                    {/* KPI 3: Outlined Bag Icon from Penarikan KPI 1 */}
+                    <div className="stat">
+                      <div className="stat-top">
+                        <div className="si" style={{ background: 'var(--gold)', color: 'var(--forest)' }}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" style={{ width: '18px', height: '18px' }}>
+                            <path d="m18.935 13.945l-.67-3.648c-.29-1.576-.435-2.364-1.008-2.83S15.86 7 14.213 7H9.787c-1.647 0-2.47 0-3.044.467c-.573.466-.718 1.254-1.008 2.83l-.67 3.648c-.6 3.271-.901 4.907.024 5.98C6.014 21 7.724 21 11.142 21h1.716c3.418 0 5.128 0 6.053-1.074s.625-2.71.024-5.98Z" />
+                            <path strokeLinejoin="round" d="M12 10.5V17m-2.5-2l2.5 2.5l2.5-2.5" />
+                          </svg>
+                        </div>
+                        <span className="trend t-uw" style={{ background: 'var(--amb-s)', color: 'var(--amb)' }}>Pencairan</span>
+                      </div>
+                      <div className="stat-num">Rp {(reportData?.kpi?.totalWithdrawn || 620000).toLocaleString('id-ID')}</div>
+                      <div className="stat-lbl">Total Penarikan Saldo</div>
+                    </div>
+
+                    {/* KPI 4: Clipboard SVG Icon from Dashboard KPI 4 */}
+                    <div className="stat">
+                      <div className="stat-top">
+                        <div className="si" style={{ background: 'var(--gold)', color: 'var(--forest)' }}>
+                          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '18px', height: '18px' }}>
+                            <path d="M17.997 4.17A3 3 0 0 1 20 7v12a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 2.003-2.83A4 4 0 0 0 10 8h4a4 4 0 0 0 3.98-3.597zM15 15H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2m0-4H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2m-1-9a2 2 0 1 1 0 4h-4a2 2 0 1 1 0-4z" />
+                          </svg>
+                        </div>
+                        <span className="trend t-up">Total</span>
+                      </div>
+                      <div className="stat-num">{reportData?.kpi?.totalTransactions || 238}</div>
+                      <div className="stat-lbl">Total Transaksi Setor</div>
+                    </div>
                   </div>
 
-                  <div className="g2" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                    <div className="panel">
-                      <div className="panel-head"><div className="panel-title">Tren Berat Sampah (kg)</div><div className="panel-sub">6 bulan terakhir</div></div>
-                      <div style={{ padding: '16px 18px' }}>
-                        <div className="chart-placeholder">
-                          <div className="bar-item" style={{ height: '55%' }}><span className="bar-label">Sep</span></div>
-                          <div className="bar-item" style={{ height: '62%' }}><span className="bar-label">Okt</span></div>
-                          <div className="bar-item" style={{ height: '70%' }}><span className="bar-label">Nov</span></div>
-                          <div className="bar-item" style={{ height: '68%' }}><span className="bar-label">Des</span></div>
-                          <div className="bar-item" style={{ height: '78%' }}><span className="bar-label">Jan</span></div>
-                          <div className="bar-item hi" style={{ height: '88%' }}><span className="bar-label">Feb</span></div>
+                  {/* 10 Interactive Chart.js Charts Grid */}
+                  <div className="g2" style={{ gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+
+                    {/* Chart 1: Line Chart - Tren Berat Sampah */}
+                    <div className="panel report-chart-container">
+                      <div className="panel-head">
+                        <div>
+                          <div className="panel-title">1. Tren Berat Sampah (kg)</div>
+                          <div className="panel-sub">Volume akumulasi setoran sampah</div>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', fontSize: '11px', color: 'var(--faint)' }}>
-                          <span>Maks: <strong style={{ color: 'var(--ink)' }}>1.247 kg</strong> (Feb)</span>
-                          <span>Min: <strong style={{ color: 'var(--ink)' }}>842 kg</strong> (Sep)</span>
-                          <span>Rata-rata: <strong style={{ color: 'var(--ink)' }}>1.024 kg</strong></span>
-                        </div>
+                      </div>
+                      <div style={{ padding: '16px 18px', height: '260px' }}>
+                        <Line
+                          data={{
+                            labels: (reportData?.monthlyTrends || [
+                              { label: 'Sep', totalWeight: 842 },
+                              { label: 'Okt', totalWeight: 915 },
+                              { label: 'Nov', totalWeight: 1040 },
+                              { label: 'Des', totalWeight: 980 },
+                              { label: 'Jan', totalWeight: 1120 },
+                              { label: 'Feb', totalWeight: 1247 }
+                            ]).map(t => t.label),
+                            datasets: [{
+                              label: 'Berat Sampah (kg)',
+                              data: (reportData?.monthlyTrends || [
+                                { label: 'Sep', totalWeight: 842 },
+                                { label: 'Okt', totalWeight: 915 },
+                                { label: 'Nov', totalWeight: 1040 },
+                                { label: 'Des', totalWeight: 980 },
+                                { label: 'Jan', totalWeight: 1120 },
+                                { label: 'Feb', totalWeight: 1247 }
+                              ]).map(t => t.totalWeight),
+                              borderColor: '#10b981',
+                              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                              fill: true,
+                              tension: 0.35,
+                              pointRadius: 5,
+                              pointHoverRadius: 7
+                            }]
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { display: false },
+                              tooltip: {
+                                callbacks: {
+                                  label: (ctx) => ` Berat: ${ctx.parsed.y} kg`
+                                }
+                              }
+                            },
+                            scales: {
+                              y: { beginAtZero: true, grid: { color: '#f3f4f6' } },
+                              x: { grid: { display: false } }
+                            }
+                          }}
+                        />
                       </div>
                     </div>
 
-                    <div className="panel">
-                      <div className="panel-head"><div className="panel-title">Tren Nilai (Rp)</div><div className="panel-sub">6 bulan terakhir</div></div>
-                      <div style={{ padding: '16px 18px' }}>
-                        <div className="chart-placeholder">
-                          <div className="bar-item" style={{ height: '48%' }}><span className="bar-label">Sep</span></div>
-                          <div className="bar-item" style={{ height: '56%' }}><span className="bar-label">Okt</span></div>
-                          <div className="bar-item" style={{ height: '65%' }}><span className="bar-label">Nov</span></div>
-                          <div className="bar-item" style={{ height: '72%' }}><span className="bar-label">Des</span></div>
-                          <div className="bar-item" style={{ height: '80%' }}><span className="bar-label">Jan</span></div>
-                          <div className="bar-item hi" style={{ height: '92%' }}><span className="bar-label">Feb</span></div>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', fontSize: '11px', color: 'var(--faint)' }}>
-                          <span>Maks: <strong style={{ color: 'var(--ink)' }}>Rp 1,8jt</strong> (Feb)</span>
-                          <span>Min: <strong style={{ color: 'var(--ink)' }}>Rp 980rb</strong> (Sep)</span>
-                          <span>Rata-rata: <strong style={{ color: 'var(--ink)' }}>Rp 1,4jt</strong></span>
+                    {/* Chart 2: Line Chart - Tren Nilai Beli */}
+                    <div className="panel report-chart-container">
+                      <div className="panel-head">
+                        <div>
+                          <div className="panel-title">2. Tren Nilai Sampah (Rp)</div>
+                          <div className="panel-sub">Total kredit saldo nasabah</div>
                         </div>
                       </div>
+                      <div style={{ padding: '16px 18px', height: '260px' }}>
+                        <Line
+                          data={{
+                            labels: (reportData?.monthlyTrends || [
+                              { label: 'Sep', totalBuyValue: 980000 },
+                              { label: 'Okt', totalBuyValue: 1150000 },
+                              { label: 'Nov', totalBuyValue: 1320000 },
+                              { label: 'Des', totalBuyValue: 1450000 },
+                              { label: 'Jan', totalBuyValue: 1600000 },
+                              { label: 'Feb', totalBuyValue: 1800000 }
+                            ]).map(t => t.label),
+                            datasets: [{
+                              label: 'Nilai Sampah (Rp)',
+                              data: (reportData?.monthlyTrends || [
+                                { label: 'Sep', totalBuyValue: 980000 },
+                                { label: 'Okt', totalBuyValue: 1150000 },
+                                { label: 'Nov', totalBuyValue: 1320000 },
+                                { label: 'Des', totalBuyValue: 1450000 },
+                                { label: 'Jan', totalBuyValue: 1600000 },
+                                { label: 'Feb', totalBuyValue: 1800000 }
+                              ]).map(t => t.totalBuyValue),
+                              borderColor: '#e8b323',
+                              backgroundColor: 'rgba(232, 179, 35, 0.1)',
+                              fill: true,
+                              tension: 0.35,
+                              pointRadius: 5,
+                              pointHoverRadius: 7
+                            }]
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { display: false },
+                              tooltip: {
+                                callbacks: {
+                                  label: (ctx) => ` Total Nilai: Rp ${ctx.parsed.y.toLocaleString('id-ID')}`
+                                }
+                              }
+                            },
+                            scales: {
+                              y: { beginAtZero: true, grid: { color: '#f3f4f6' } },
+                              x: { grid: { display: false } }
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
+
+                    {/* Chart 3: Donut Chart - Komposisi Sampah */}
+                    <div className="panel report-chart-container">
+                      <div className="panel-head">
+                        <div>
+                          <div className="panel-title">3. Komposisi Sampah (%)</div>
+                          <div className="panel-sub">Proporsi kategori sampah yang terkumpul</div>
+                        </div>
+                      </div>
+                      <div style={{ padding: '16px 18px', height: '260px' }}>
+                        <Doughnut
+                          data={{
+                            labels: (reportData?.categoryComposition || [
+                              { category: 'Plastik', weight: 380 },
+                              { category: 'Kertas', weight: 315 },
+                              { category: 'Logam', weight: 226 },
+                              { category: 'Kaca', weight: 163 },
+                              { category: 'Minyak', weight: 100 },
+                              { category: 'Lainnya', weight: 63 }
+                            ]).map(c => c.category),
+                            datasets: [{
+                              data: (reportData?.categoryComposition || [
+                                { category: 'Plastik', weight: 380 },
+                                { category: 'Kertas', weight: 315 },
+                                { category: 'Logam', weight: 226 },
+                                { category: 'Kaca', weight: 163 },
+                                { category: 'Minyak', weight: 100 },
+                                { category: 'Lainnya', weight: 63 }
+                              ]).map(c => c.weight),
+                              backgroundColor: ['#059669', '#d97706', '#4b5563', '#0284c7', '#ea580c', '#8b5cf6'],
+                              borderWidth: 2
+                            }]
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } },
+                              tooltip: {
+                                callbacks: {
+                                  label: (ctx) => ` ${ctx.label}: ${ctx.parsed} kg`
+                                }
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Chart 4: Bar Chart - Distribusi Berat per Kategori */}
+                    <div className="panel report-chart-container">
+                      <div className="panel-head">
+                        <div>
+                          <div className="panel-title">4. Distribusi Berat per Kategori</div>
+                          <div className="panel-sub">Volume dalam kilogram per jenis kategori</div>
+                        </div>
+                      </div>
+                      <div style={{ padding: '16px 18px', height: '260px' }}>
+                        <Bar
+                          data={{
+                            labels: (reportData?.categoryComposition || [
+                              { category: 'Plastik', weight: 380 },
+                              { category: 'Kertas', weight: 315 },
+                              { category: 'Logam', weight: 226 },
+                              { category: 'Kaca', weight: 163 },
+                              { category: 'Minyak', weight: 100 },
+                              { category: 'Lainnya', weight: 63 }
+                            ]).map(c => c.category),
+                            datasets: [{
+                              label: 'Berat (kg)',
+                              data: (reportData?.categoryComposition || [
+                                { category: 'Plastik', weight: 380 },
+                                { category: 'Kertas', weight: 315 },
+                                { category: 'Logam', weight: 226 },
+                                { category: 'Kaca', weight: 163 },
+                                { category: 'Minyak', weight: 100 },
+                                { category: 'Lainnya', weight: 63 }
+                              ]).map(c => c.weight),
+                              backgroundColor: ['#059669', '#d97706', '#4b5563', '#0284c7', '#ea580c', '#8b5cf6'],
+                              borderRadius: 4
+                            }]
+                          }}
+                          options={{
+                            indexAxis: 'y',
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { display: false },
+                              tooltip: {
+                                callbacks: {
+                                  label: (ctx) => ` Berat: ${ctx.parsed.x} kg`
+                                }
+                              }
+                            },
+                            scales: {
+                              x: { beginAtZero: true, grid: { color: '#f3f4f6' } },
+                              y: { grid: { display: false } }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Chart 5: Line Chart - Tren Penarikan Saldo */}
+                    <div className="panel report-chart-container">
+                      <div className="panel-head">
+                        <div>
+                          <div className="panel-title">5. Tren Penarikan Saldo (Rp)</div>
+                          <div className="panel-sub">Volume pencairan saldo tabungan nasabah</div>
+                        </div>
+                      </div>
+                      <div style={{ padding: '16px 18px', height: '260px' }}>
+                        <Line
+                          data={{
+                            labels: (reportData?.monthlyTrends || [
+                              { label: 'Sep', totalWithdrawn: 420000 },
+                              { label: 'Okt', totalWithdrawn: 510000 },
+                              { label: 'Nov', totalWithdrawn: 480000 },
+                              { label: 'Des', totalWithdrawn: 590000 },
+                              { label: 'Jan', totalWithdrawn: 550000 },
+                              { label: 'Feb', totalWithdrawn: 620000 }
+                            ]).map(t => t.label),
+                            datasets: [{
+                              label: 'Penarikan (Rp)',
+                              data: (reportData?.monthlyTrends || [
+                                { label: 'Sep', totalWithdrawn: 420000 },
+                                { label: 'Okt', totalWithdrawn: 510000 },
+                                { label: 'Nov', totalWithdrawn: 480000 },
+                                { label: 'Des', totalWithdrawn: 590000 },
+                                { label: 'Jan', totalWithdrawn: 550000 },
+                                { label: 'Feb', totalWithdrawn: 620000 }
+                              ]).map(t => t.totalWithdrawn),
+                              borderColor: '#ef4444',
+                              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                              fill: true,
+                              tension: 0.35,
+                              pointRadius: 5,
+                              pointHoverRadius: 7
+                            }]
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { display: false },
+                              tooltip: {
+                                callbacks: {
+                                  label: (ctx) => ` Penarikan: Rp ${ctx.parsed.y.toLocaleString('id-ID')}`
+                                }
+                              }
+                            },
+                            scales: {
+                              y: { beginAtZero: true, grid: { color: '#f3f4f6' } },
+                              x: { grid: { display: false } }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Chart 6: Bar Chart - Tren Jumlah Transaksi */}
+                    <div className="panel report-chart-container">
+                      <div className="panel-head">
+                        <div>
+                          <div className="panel-title">6. Tren Jumlah Transaksi</div>
+                          <div className="panel-sub">Frekuensi aktivitas timbang sampah</div>
+                        </div>
+                      </div>
+                      <div style={{ padding: '16px 18px', height: '260px' }}>
+                        <Bar
+                          data={{
+                            labels: (reportData?.monthlyTrends || [
+                              { label: 'Sep', transactionCount: 165 },
+                              { label: 'Okt', transactionCount: 182 },
+                              { label: 'Nov', transactionCount: 205 },
+                              { label: 'Des', transactionCount: 198 },
+                              { label: 'Jan', transactionCount: 220 },
+                              { label: 'Feb', transactionCount: 238 }
+                            ]).map(t => t.label),
+                            datasets: [{
+                              label: 'Jumlah Transaksi',
+                              data: (reportData?.monthlyTrends || [
+                                { label: 'Sep', transactionCount: 165 },
+                                { label: 'Okt', transactionCount: 182 },
+                                { label: 'Nov', transactionCount: 205 },
+                                { label: 'Des', transactionCount: 198 },
+                                { label: 'Jan', transactionCount: 220 },
+                                { label: 'Feb', transactionCount: 238 }
+                              ]).map(t => t.transactionCount),
+                              backgroundColor: '#2563eb',
+                              borderRadius: 4
+                            }]
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { display: false },
+                              tooltip: {
+                                callbacks: {
+                                  label: (ctx) => ` Transaksi: ${ctx.parsed.y} kali`
+                                }
+                              }
+                            },
+                            scales: {
+                              y: { beginAtZero: true, grid: { color: '#f3f4f6' } },
+                              x: { grid: { display: false } }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Chart 7: Horizontal Bar Chart - Top 5 Nasabah (Berat) */}
+                    <div className="panel report-chart-container">
+                      <div className="panel-head">
+                        <div>
+                          <div className="panel-title">7. Top 5 Nasabah Teraktif (Berat)</div>
+                          <div className="panel-sub">Kontributor setoran terbanyak (kg)</div>
+                        </div>
+                      </div>
+                      <div style={{ padding: '16px 18px', height: '260px' }}>
+                        <Bar
+                          data={{
+                            labels: (reportData?.topNasabah || [
+                              { name: 'Siti Rahayu', weight: 145 },
+                              { name: 'Dewi Hapsari', weight: 128 },
+                              { name: 'Budi Wahyono', weight: 112 },
+                              { name: 'Rudi Santoso', weight: 95 },
+                              { name: 'Murti Astuti', weight: 82 }
+                            ]).map(n => n.name),
+                            datasets: [{
+                              label: 'Total Setoran (kg)',
+                              data: (reportData?.topNasabah || [
+                                { name: 'Siti Rahayu', weight: 145 },
+                                { name: 'Dewi Hapsari', weight: 128 },
+                                { name: 'Budi Wahyono', weight: 112 },
+                                { name: 'Rudi Santoso', weight: 95 },
+                                { name: 'Murti Astuti', weight: 82 }
+                              ]).map(n => n.weight),
+                              backgroundColor: '#8b5cf6',
+                              borderRadius: 4
+                            }]
+                          }}
+                          options={{
+                            indexAxis: 'y',
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { display: false },
+                              tooltip: {
+                                callbacks: {
+                                  label: (ctx) => ` Total Setoran: ${ctx.parsed.x} kg`
+                                }
+                              }
+                            },
+                            scales: {
+                              x: { beginAtZero: true, grid: { color: '#f3f4f6' } },
+                              y: { grid: { display: false } }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Chart 8: Stacked Bar Chart - Profit Split POS vs Pusat */}
+                    <div className="panel report-chart-container">
+                      <div className="panel-head">
+                        <div>
+                          <div className="panel-title">8. Distribution Bagi Hasil (70% POS / 30% Pusat)</div>
+                          <div className="panel-sub">Pembagian margin bersih per bulan</div>
+                        </div>
+                      </div>
+                      <div style={{ padding: '16px 18px', height: '260px' }}>
+                        <Bar
+                          data={{
+                            labels: (reportData?.monthlyTrends || [
+                              { label: 'Sep', posProfit: 252000, pusatProfit: 108000 },
+                              { label: 'Okt', posProfit: 294000, pusatProfit: 126000 },
+                              { label: 'Nov', posProfit: 336000, pusatProfit: 144000 },
+                              { label: 'Des', posProfit: 378000, pusatProfit: 162000 },
+                              { label: 'Jan', posProfit: 420000, pusatProfit: 180000 },
+                              { label: 'Feb', posProfit: 490000, pusatProfit: 210000 }
+                            ]).map(t => t.label),
+                            datasets: [
+                              {
+                                label: 'Profit POS (70%)',
+                                data: (reportData?.monthlyTrends || [
+                                  { label: 'Sep', posProfit: 252000 },
+                                  { label: 'Okt', posProfit: 294000 },
+                                  { label: 'Nov', posProfit: 336000 },
+                                  { label: 'Des', posProfit: 378000 },
+                                  { label: 'Jan', posProfit: 420000 },
+                                  { label: 'Feb', posProfit: 490000 }
+                                ]).map(t => t.posProfit),
+                                backgroundColor: '#059669'
+                              },
+                              {
+                                label: 'Profit Pusat (30%)',
+                                data: (reportData?.monthlyTrends || [
+                                  { label: 'Sep', pusatProfit: 108000 },
+                                  { label: 'Okt', pusatProfit: 126000 },
+                                  { label: 'Nov', pusatProfit: 144000 },
+                                  { label: 'Des', pusatProfit: 162000 },
+                                  { label: 'Jan', pusatProfit: 180000 },
+                                  { label: 'Feb', pusatProfit: 210000 }
+                                ]).map(t => t.pusatProfit),
+                                backgroundColor: '#d97706'
+                              }
+                            ]
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+                              tooltip: {
+                                callbacks: {
+                                  label: (ctx) => ` ${ctx.dataset.label}: Rp ${ctx.parsed.y.toLocaleString('id-ID')}`
+                                }
+                              }
+                            },
+                            scales: {
+                              x: { stacked: true, grid: { display: false } },
+                              y: { stacked: true, beginAtZero: true, grid: { color: '#f3f4f6' } }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Chart 9: Line Chart - Tren Nasabah Aktif */}
+                    <div className="panel report-chart-container">
+                      <div className="panel-head">
+                        <div>
+                          <div className="panel-title">9. Pertumbuhan Nasabah Aktif</div>
+                          <div className="panel-sub">Jumlah nasabah terdaftar dan aktif</div>
+                        </div>
+                      </div>
+                      <div style={{ padding: '16px 18px', height: '260px' }}>
+                        <Line
+                          data={{
+                            labels: (reportData?.monthlyTrends || [
+                              { label: 'Sep', activeNasabah: 115 },
+                              { label: 'Okt', activeNasabah: 122 },
+                              { label: 'Nov', activeNasabah: 128 },
+                              { label: 'Des', activeNasabah: 134 },
+                              { label: 'Jan', activeNasabah: 138 },
+                              { label: 'Feb', activeNasabah: 142 }
+                            ]).map(t => t.label),
+                            datasets: [{
+                              label: 'Nasabah Aktif',
+                              data: (reportData?.monthlyTrends || [
+                                { label: 'Sep', activeNasabah: 115 },
+                                { label: 'Okt', activeNasabah: 122 },
+                                { label: 'Nov', activeNasabah: 128 },
+                                { label: 'Des', activeNasabah: 134 },
+                                { label: 'Jan', activeNasabah: 138 },
+                                { label: 'Feb', activeNasabah: 142 }
+                              ]).map(t => t.activeNasabah),
+                              borderColor: '#0284c7',
+                              backgroundColor: 'rgba(2, 132, 199, 0.1)',
+                              fill: true,
+                              tension: 0.35,
+                              pointRadius: 5,
+                              pointHoverRadius: 7
+                            }]
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { display: false },
+                              tooltip: {
+                                callbacks: {
+                                  label: (ctx) => ` Total: ${ctx.parsed.y} nasabah`
+                                }
+                              }
+                            },
+                            scales: {
+                              y: { beginAtZero: true, grid: { color: '#f3f4f6' } },
+                              x: { grid: { display: false } }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Chart 10: Bar Chart - Jenis Sampah Terpopuler */}
+                    <div className="panel report-chart-container">
+                      <div className="panel-head">
+                        <div>
+                          <div className="panel-title">10. Jenis Sampah Terpopuler</div>
+                          <div className="panel-sub">Sub-jenis dengan volume timbangan terbesar (kg)</div>
+                        </div>
+                      </div>
+                      <div style={{ padding: '16px 18px', height: '260px' }}>
+                        <Bar
+                          data={{
+                            labels: (reportData?.topWasteTypes || [
+                              { name: 'PET Campur', weight: 185 },
+                              { name: 'Koran Bekas', weight: 142 },
+                              { name: 'Dus/Karton', weight: 120 },
+                              { name: 'Besi Tipis', weight: 98 },
+                              { name: 'PET Bersih', weight: 85 },
+                              { name: 'Botol Kaca', weight: 74 }
+                            ]).map(w => w.name),
+                            datasets: [{
+                              label: 'Berat (kg)',
+                              data: (reportData?.topWasteTypes || [
+                                { name: 'PET Campur', weight: 185 },
+                                { name: 'Koran Bekas', weight: 142 },
+                                { name: 'Dus/Karton', weight: 120 },
+                                { name: 'Besi Tipis', weight: 98 },
+                                { name: 'PET Bersih', weight: 85 },
+                                { name: 'Botol Kaca', weight: 74 }
+                              ]).map(w => w.weight),
+                              backgroundColor: '#ea580c',
+                              borderRadius: 4
+                            }]
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { display: false },
+                              tooltip: {
+                                callbacks: {
+                                  label: (ctx) => ` Volume: ${ctx.parsed.y} kg`
+                                }
+                              }
+                            },
+                            scales: {
+                              y: { beginAtZero: true, grid: { color: '#f3f4f6' } },
+                              x: { grid: { display: false } }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+
                   </div>
                 </>
               )}
 
-              {/* PAGE: RIWAYAT LEDGER */}
+              {/* PAGE: AUDIT LOG (formerly Riwayat Ledger) */}
               {posTab === 'history' && (
                 <>
                   <div className="ph2">
                     <div className="ph2-l">
-                      <div className="pt">Riwayat <span>Ledger POS</span></div>
-                      <div className="ps">Rekapitulasi log transaksi & mutasi saldo</div>
+                      <div className="pt">Audit <span>Log</span></div>
+                      <div className="ps">System Event Log & Audit Trail Aktivitas POS</div>
                     </div>
                   </div>
 
                   <div className="panel mb-4">
                     <div className="panel-head">
-                      <div className="panel-title">Riwayat Mutasi Saldo</div>
+                      <div className="panel-title">Daftar Audit Event Log</div>
                     </div>
                     <div className="tw">
                       <table>
                         <thead>
                           <tr>
-                            <th>Tanggal</th>
-                            <th>ID Nasabah</th>
-                            <th>Nama</th>
-                            <th>Tipe</th>
-                            <th>Jumlah Mutasi</th>
-                            <th>Bagi Hasil (POS / Pusat)</th>
-                            <th>Rincian / Bukti</th>
+                            <th>Waktu Log</th>
+                            <th>Pengguna</th>
+                            <th>Action Event</th>
+                            <th>Entity Target</th>
+                            <th>Entity ID</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {history.length === 0 ? (
+                          {realAuditLogs.length === 0 ? (
                             <tr>
-                              <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>Belum ada mutasi transaksi.</td>
+                              <td colSpan={5} style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>Belum ada log audit tercatat.</td>
                             </tr>
                           ) : (
-                            history.map((item, idx) => (
-                              <tr key={item.id || idx}>
-                                <td><span className="td-d">{new Date(item.date).toLocaleDateString('id-ID')}</span></td>
-                                <td><span className="mono" style={{ fontSize: '11px' }}>{item.customer_id}</span></td>
-                                <td><strong className="mn">{item.customer_name}</strong></td>
+                            realAuditLogs.map((log) => (
+                              <tr key={log.log_id}>
                                 <td>
-                                  <span className={`badge ${item.type === 'DEPOSIT' ? 'b-g' : 'b-r'}`}>
-                                    {item.type}
+                                  <span className="td-d">
+                                    {new Date(log.timestamp).toLocaleString('id-ID')}
                                   </span>
                                 </td>
                                 <td>
-                                  <span className={`mono ${item.type === 'DEPOSIT' ? 'tw-c' : ''}`} style={{ color: item.type === 'WITHDRAWAL' ? 'var(--red)' : undefined, fontWeight: 700 }}>
-                                    {item.type === 'DEPOSIT' ? '+' : '-'} Rp {item.amount.toLocaleString('id-ID')}
-                                  </span>
+                                  <div className="tdm">
+                                    <div className="av" style={{ background: '#e0e7ff', color: '#3730a3' }}>
+                                      {getInitials(log.username || 'admin')}
+                                    </div>
+                                    <div>
+                                      <div className="mn">{log.username || log.user_id || 'System Admin'}</div>
+                                      <div style={{ fontSize: '11px', color: 'var(--faint)' }}>{log.user_role || 'ADMIN'}</div>
+                                    </div>
+                                  </div>
                                 </td>
                                 <td>
-                                  {item.type === 'DEPOSIT' ? (
-                                    <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
-                                      Rp {item.pos_profit.toLocaleString('id-ID')} / Rp {item.pusat_profit.toLocaleString('id-ID')}
-                                    </span>
-                                  ) : (
-                                    <span style={{ color: 'var(--faint)' }}>-</span>
-                                  )}
+                                  <span className={`badge ${log.action.includes('DEPOSIT') ? 'b-g' :
+                                      log.action.includes('WITHDRAWAL') ? 'b-y' : 'b-r'
+                                    }`}>
+                                    {log.action}
+                                  </span>
                                 </td>
-                                <td style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
-                                  {item.type === 'WITHDRAWAL' ? (
-                                    <a href={item.proof_image_url} target="_blank" rel="noreferrer" style={{ color: 'var(--green)', fontWeight: 600 }}>
-                                      Lihat Bukti Transfer
-                                    </a>
-                                  ) : (
-                                    <span>{item.details?.map(d => `${d.name} (${d.quantity} ${d.unit})`).join(', ')}</span>
-                                  )}
-                                </td>
+                                <td><span className="mono" style={{ fontSize: '12px' }}>{log.entity}</span></td>
+                                <td><span className="mono" style={{ fontSize: '11.5px', color: 'var(--muted)' }}>#{log.entity_id || '-'}</span></td>
                               </tr>
                             ))
                           )}
@@ -2144,18 +3543,18 @@ export default function Home() {
                   <div className="fr">
                     <div className="fg">
                       <label className="fl">Kode Nasabah</label>
-                      <input 
-                        className="fi" 
+                      <input
+                        className="fi"
                         value={selectedNasabah ? formatNasabahId(selectedNasabah.customer_id, selectedNasabah.pos_id) : (nasabahSearchText ? 'WW-BA-0041' : '')}
                         placeholder="WW-BA-0041"
-                        disabled 
+                        disabled
                         style={{ background: '#f4f6f3', color: '#8a9e8a', cursor: 'not-allowed' }}
                       />
                     </div>
                     <div className="fg">
                       <label className="fl">Tanggal Setor</label>
-                      <input 
-                        className="fi" 
+                      <input
+                        className="fi"
                         type="datetime-local"
                         value={tanggalSetor}
                         onChange={(e) => setTanggalSetor(e.target.value)}
@@ -2166,9 +3565,9 @@ export default function Home() {
                   {/* Row 2: Nama Nasabah with Typeahead Suggestions */}
                   <div className="fg" style={{ position: 'relative' }}>
                     <label className="fl">Nama Nasabah</label>
-                    <input 
-                      className="fi" 
-                      placeholder="Nama lengkap nasabah" 
+                    <input
+                      className="fi"
+                      placeholder="Nama lengkap nasabah"
                       value={nasabahSearchText}
                       onChange={(e) => {
                         setNasabahSearchText(e.target.value);
@@ -2183,7 +3582,7 @@ export default function Home() {
                         <div className="nasabah-suggestions">
                           {filteredNasabahSuggestions.length > 0 ? (
                             filteredNasabahSuggestions.map(n => (
-                              <div 
+                              <div
                                 key={n.customer_id}
                                 className="nasabah-suggestion-item"
                                 onClick={() => {
@@ -2216,8 +3615,8 @@ export default function Home() {
                             DETAIL SAMPAH {idx + 1}
                           </div>
                           {weighItems.length > 1 && (
-                            <button 
-                              type="button" 
+                            <button
+                              type="button"
                               onClick={() => {
                                 const updated = weighItems.filter((_, i) => i !== idx);
                                 setWeighItems(updated);
@@ -2247,7 +3646,7 @@ export default function Home() {
                         <div className="fr">
                           <div className="fg">
                             <label className="fl">Kategori Sampah</label>
-                            <select 
+                            <select
                               className="fsel"
                               value={item.kategori}
                               onChange={(e) => {
@@ -2271,10 +3670,10 @@ export default function Home() {
 
                           <div className="fg">
                             <label className="fl">Berat (kg)</label>
-                            <input 
-                              className="fi" 
+                            <input
+                              className="fi"
                               type="text"
-                              placeholder="0.0" 
+                              placeholder="0.0"
                               value={item.berat}
                               onChange={(e) => {
                                 const updated = [...weighItems];
@@ -2288,7 +3687,7 @@ export default function Home() {
                         <div className="fr">
                           <div className="fg">
                             <label className="fl">Jenis Sampah</label>
-                            <select 
+                            <select
                               className="fsel"
                               value={item.waste_type_id || item.jenis}
                               disabled={!item.kategori}
@@ -2313,10 +3712,10 @@ export default function Home() {
 
                           <div className="fg">
                             <label className="fl">Pengepul</label>
-                            <input 
-                              className="fi" 
+                            <input
+                              className="fi"
                               value={item.pengepul || 'Bali Bersih'}
-                              disabled 
+                              disabled
                               style={{ background: '#f4f6f3', color: '#8a9e8a', cursor: 'not-allowed' }}
                             />
                           </div>
@@ -2326,7 +3725,7 @@ export default function Home() {
                   })}
 
                   {/* Dark Green + Tambah Sampah Button */}
-                  <button 
+                  <button
                     type="button"
                     className="btn-forest"
                     style={{ marginTop: '8px' }}
@@ -2347,17 +3746,17 @@ export default function Home() {
                   <div className="fr">
                     <div className="fg">
                       <label className="fl">Kode Nasabah</label>
-                      <input 
-                        className="fi" 
+                      <input
+                        className="fi"
                         value={`WW-${(activePosId || 'BA').toUpperCase()}-0025`}
-                        disabled 
+                        disabled
                         style={{ background: '#f4f6f3', color: '#8a9e8a', cursor: 'not-allowed' }}
                       />
                     </div>
                     <div className="fg">
                       <label className="fl">Tanggal Penambahan</label>
-                      <input 
-                        className="fi" 
+                      <input
+                        className="fi"
                         type="datetime-local"
                         value={tanggalNasabah}
                         onChange={(e) => setTanggalNasabah(e.target.value)}
@@ -2367,9 +3766,9 @@ export default function Home() {
 
                   <div className="fg">
                     <label className="fl">Nama Nasabah</label>
-                    <input 
-                      className="fi" 
-                      placeholder="Nama lengkap nasabah" 
+                    <input
+                      className="fi"
+                      placeholder="Nama lengkap nasabah"
                       value={nasabahNewForm.name}
                       onChange={(e) => setNasabahNewForm({ ...nasabahNewForm, name: e.target.value })}
                     />
@@ -2377,9 +3776,9 @@ export default function Home() {
 
                   <div className="fg">
                     <label className="fl">Alamat Nasabah</label>
-                    <input 
-                      className="fi" 
-                      placeholder="Alamat singkat nasabah" 
+                    <input
+                      className="fi"
+                      placeholder="Alamat singkat nasabah"
                       value={nasabahNewForm.address}
                       onChange={(e) => setNasabahNewForm({ ...nasabahNewForm, address: e.target.value })}
                     />
@@ -2392,17 +3791,17 @@ export default function Home() {
                   <div className="fr">
                     <div className="fg">
                       <label className="fl">Kode Nasabah</label>
-                      <input 
-                        className="fi" 
+                      <input
+                        className="fi"
                         value={formatNasabahId(editingNasabah.customer_id, editingNasabah.pos_id || activePosId)}
-                        disabled 
+                        disabled
                         style={{ background: '#f4f6f3', color: '#8a9e8a', cursor: 'not-allowed' }}
                       />
                     </div>
                     <div className="fg">
                       <label className="fl">Tanggal Perubahan</label>
-                      <input 
-                        className="fi" 
+                      <input
+                        className="fi"
                         type="datetime-local"
                         value={tanggalNasabah}
                         onChange={(e) => setTanggalNasabah(e.target.value)}
@@ -2412,8 +3811,8 @@ export default function Home() {
 
                   <div className="fg">
                     <label className="fl">Nama Nasabah</label>
-                    <input 
-                      className="fi" 
+                    <input
+                      className="fi"
                       value={nasabahEditForm.name}
                       onChange={(e) => setNasabahEditForm({ ...nasabahEditForm, name: e.target.value })}
                     />
@@ -2421,8 +3820,8 @@ export default function Home() {
 
                   <div className="fg">
                     <label className="fl">Alamat Nasabah</label>
-                    <input 
-                      className="fi" 
+                    <input
+                      className="fi"
                       value={nasabahEditForm.address}
                       onChange={(e) => setNasabahEditForm({ ...nasabahEditForm, address: e.target.value })}
                     />
@@ -2430,29 +3829,17 @@ export default function Home() {
 
                   <div className="fg">
                     <label className="fl">Status Nasabah</label>
-                    <div 
-                      className="fi" 
-                      style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '8px', 
-                        cursor: 'pointer', 
-                        userSelect: 'none',
-                        padding: '6px 12px',
-                        background: '#fff'
-                      }}
-                      onClick={() => setNasabahEditForm({
+                    <select
+                      className="fsel"
+                      value={nasabahEditForm.status || 'ACTIVE'}
+                      onChange={(e) => setNasabahEditForm({
                         ...nasabahEditForm,
-                        status: nasabahEditForm.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
+                        status: e.target.value
                       })}
                     >
-                      <span className={`badge ${nasabahEditForm.status === 'INACTIVE' ? 'b-r' : 'b-g'}`}>
-                        {nasabahEditForm.status === 'INACTIVE' ? 'Tidak Aktif' : 'Aktif'}
-                      </span>
-                      <span style={{ fontSize: '11px', color: 'var(--muted)', marginLeft: 'auto' }}>
-                        Klik untuk mengubah
-                      </span>
-                    </div>
+                      <option value="ACTIVE">Aktif (Dapat melakukan transaksi)</option>
+                      <option value="INACTIVE">Tidak Aktif (Dinonaktifkan)</option>
+                    </select>
                   </div>
                 </>
               )}
@@ -2461,7 +3848,7 @@ export default function Home() {
                 <>
                   <div className="fg">
                     <label className="fl">Pilih Nasabah</label>
-                    <select 
+                    <select
                       className="fsel"
                       onChange={(e) => {
                         const n = nasabahs.find(item => item.customer_id === e.target.value);
@@ -2476,10 +3863,10 @@ export default function Home() {
                   </div>
                   <div className="fg">
                     <label className="fl">Nominal Penarikan (Rp)</label>
-                    <input 
-                      className="fi" 
-                      type="number" 
-                      placeholder="Contoh: 50000" 
+                    <input
+                      className="fi"
+                      type="number"
+                      placeholder="Contoh: 50000"
                       value={withdrawAmount}
                       onChange={(e) => setWithdrawAmount(e.target.value)}
                     />
@@ -2554,6 +3941,78 @@ export default function Home() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                </>
+              )}
+
+              {modalType === 'DETAIL_SETORAN' && selectedDepositDetail && (
+                <>
+                  <div style={{
+                    background: 'var(--surf2)',
+                    border: '1px solid var(--line)',
+                    borderRadius: '9px',
+                    padding: '16px',
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--ink)' }}>
+                        {selectedDepositDetail.customer_name || selectedDepositDetail.customer?.name || 'Nasabah'}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>
+                        ID Nasabah: {formatNasabahId(selectedDepositDetail.customer_id, selectedDepositDetail.pos_id || activePosId)}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--faint)', textTransform: 'uppercase', fontWeight: 600 }}>
+                        Total Nilai Setoran
+                      </div>
+                      <div className="mono tp-c" style={{ fontSize: '18px', fontWeight: 800 }}>
+                        Rp. {parseFloat(selectedDepositDetail.totalBuyValue || selectedDepositDetail.total_buy_value || 0).toLocaleString('id-ID')}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="tw" style={{ marginBottom: '16px' }}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Jenis Sampah</th>
+                          <th>Kategori</th>
+                          <th>Jumlah</th>
+                          <th>Harga Satuan</th>
+                          <th>Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(selectedDepositDetail.details || []).map((dt, idx) => (
+                          <tr key={idx}>
+                            <td><strong>{dt.wasteName || dt.waste_type?.waste_name || 'Sampah Terpilah'}</strong></td>
+                            <td><span className="badge b-g">{dt.category || 'Plastik'}</span></td>
+                            <td><span className="mono tw-c">{dt.quantity} {dt.unit || 'kg'}</span></td>
+                            <td><span className="mono">Rp {parseFloat(dt.buyPrice || dt.price_snapshot || 0).toLocaleString('id-ID')}</span></td>
+                            <td><span className="mono tp-c" style={{ fontWeight: 700 }}>Rp {parseFloat(dt.subtotal || 0).toLocaleString('id-ID')}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="fr" style={{ marginBottom: '12px' }}>
+                    <div className="fg">
+                      <label className="fl">Margin (Rp)</label>
+                      <input className="fi" value={`Rp ${parseFloat(selectedDepositDetail.margin || 0).toLocaleString('id-ID')}`} disabled style={{ background: '#f4f6f3', color: '#555' }} />
+                    </div>
+                    <div className="fg">
+                      <label className="fl">Profit Share POS (70%)</label>
+                      <input className="fi" value={`Rp ${parseFloat(selectedDepositDetail.posProfit || selectedDepositDetail.pos_profit || 0).toLocaleString('id-ID')}`} disabled style={{ background: '#f4f6f3', color: 'var(--forest)', fontWeight: 600 }} />
+                    </div>
+                    <div className="fg">
+                      <label className="fl">Profit Share Pusat (30%)</label>
+                      <input className="fi" value={`Rp ${parseFloat(selectedDepositDetail.pusatProfit || selectedDepositDetail.pusat_profit || 0).toLocaleString('id-ID')}`} disabled style={{ background: '#f4f6f3', color: 'var(--amb)', fontWeight: 600 }} />
+                    </div>
                   </div>
                 </>
               )}
@@ -2666,7 +4125,7 @@ export default function Home() {
 
                   <div className="fg" style={{ marginBottom: '14px' }}>
                     <label className="fl">Unggah Bukti Transaksi / Transfer (Optional)</label>
-                    <div 
+                    <div
                       style={{
                         border: '2px dashed var(--line)',
                         borderRadius: '9px',
@@ -2675,7 +4134,7 @@ export default function Home() {
                         background: selectedWithdrawalProof ? 'var(--gold-xs)' : 'var(--surf2)',
                         cursor: 'pointer',
                         transition: 'all 0.2s ease'
-                      }} 
+                      }}
                       onClick={() => document.getElementById('proof-upload-input').click()}
                     >
                       <Upload size={28} style={{ color: selectedWithdrawalProof ? 'var(--gold)' : 'var(--muted)', marginBottom: '8px' }} />

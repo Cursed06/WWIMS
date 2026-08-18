@@ -1210,8 +1210,168 @@ async function main() {
       create: n
     });
   }
-  console.log('Seed Sample Nasabahs complete.');
+  // 8. Seed Rich Multi-Month Historical Transactions & Withdrawals
+  console.log('Clearing previous transactions, details, withdrawals, and audit logs...');
+  await prisma.detailPenimbangan.deleteMany({});
+  await prisma.transaksiPenimbangan.deleteMany({});
+  await prisma.transaksiPenarikan.deleteMany({});
+  await prisma.auditLog.deleteMany({});
 
+  console.log('Seeding Multi-Month Historical Transactions & Withdrawals...');
+
+  const sampleNasabahList = ['WW-BA-0041', 'WW-BA-0027', 'WW-BA-0088', 'WW-BA-0013', 'WW-BA-0109', 'WW-BA-0142'];
+
+  const sampleItemsPool = [
+    { waste_type_id: 'BB-01', vendor_id: 'V-BB', buy: 600, sell: 800, unit: 'kg' },   // Plastik
+    { waste_type_id: 'BB-03', vendor_id: 'V-BB', buy: 2000, sell: 2500, unit: 'kg' },  // Plastik
+    { waste_type_id: 'BB-15', vendor_id: 'V-BB', buy: 1200, sell: 1600, unit: 'kg' },  // Kertas
+    { waste_type_id: 'BB-20', vendor_id: 'V-BB', buy: 1500, sell: 2000, unit: 'kg' },  // Kertas
+    { waste_type_id: 'BB-30', vendor_id: 'V-BB', buy: 75000, sell: 80000, unit: 'kg' },// Logam
+    { waste_type_id: 'BB-32', vendor_id: 'V-BB', buy: 1500, sell: 1800, unit: 'kg' },  // Logam
+    { waste_type_id: 'BB-33', vendor_id: 'V-BB', buy: 700, sell: 800, unit: 'kg' },   // Kaca
+    { waste_type_id: 'BB-37', vendor_id: 'V-BB', buy: 50, sell: 75, unit: 'kg' },     // Kaca
+    { waste_type_id: 'BB-41', vendor_id: 'V-BB', buy: 500, sell: 800, unit: 'kg' },   // Lainnya
+    { waste_type_id: 'BB-47', vendor_id: 'V-BB', buy: 5000, sell: 6500, unit: 'liter' } // Minyak
+  ];
+
+  // Months from Sep 2024 to Aug 2026 (for rich trend data)
+  const monthsConfig = [
+    { year: 2024, month: 8, count: 12 },  // Sep 2024
+    { year: 2024, month: 9, count: 15 },  // Oct 2024
+    { year: 2024, month: 10, count: 18 }, // Nov 2024
+    { year: 2024, month: 11, count: 16 }, // Dec 2024
+    { year: 2025, month: 0, count: 22 },  // Jan 2025
+    { year: 2025, month: 1, count: 25 },  // Feb 2025
+    { year: 2026, month: 6, count: 18 },  // Jul 2026
+    { year: 2026, month: 7, count: 24 }   // Aug 2026
+  ];
+
+  const currentDateLimit = new Date(2026, 7, 18, 12, 0); // Current date: 18 Aug 2026
+
+  let txCounter = 0;
+  for (const mCfg of monthsConfig) {
+    const maxDayForMonth = (mCfg.year === 2026 && mCfg.month === 7) ? 18 : 28;
+    for (let i = 0; i < mCfg.count; i++) {
+      txCounter++;
+      const day = Math.floor(Math.random() * maxDayForMonth) + 1;
+      const hour = Math.floor(Math.random() * 8) + 8;
+      const minute = Math.floor(Math.random() * 59);
+      let txDate = new Date(mCfg.year, mCfg.month, day, hour, minute);
+      if (txDate > currentDateLimit) {
+        txDate = new Date(2026, 7, 18, 9, (i * 3) % 50);
+      }
+
+      const customerId = sampleNasabahList[i % sampleNasabahList.length];
+      
+      const item1 = sampleItemsPool[(i + txCounter) % sampleItemsPool.length];
+      const item2 = sampleItemsPool[(i + txCounter + 3) % sampleItemsPool.length];
+      
+      const qty1 = parseFloat((Math.random() * 12 + 1).toFixed(1));
+      const qty2 = parseFloat((Math.random() * 8 + 0.5).toFixed(1));
+
+      const buySub1 = qty1 * item1.buy;
+      const sellSub1 = qty1 * item1.sell;
+      const buySub2 = qty2 * item2.buy;
+      const sellSub2 = qty2 * item2.sell;
+
+      const totalBuy = buySub1 + buySub2;
+      const totalSell = sellSub1 + sellSub2;
+      const margin = totalSell - totalBuy;
+      const posProfit = margin * 0.7;
+      const pusatProfit = margin * 0.3;
+
+      const createdTx = await prisma.transaksiPenimbangan.create({
+        data: {
+          customer_id: customerId,
+          pos_id: 'BA',
+          transaction_date: txDate,
+          total_buy_value: totalBuy,
+          total_sell_value: totalSell,
+          margin: margin,
+          pos_profit: posProfit,
+          pusat_profit: pusatProfit,
+          nasabah_credit: totalBuy,
+          created_by: 'admin-pos-ba',
+          details: {
+            create: [
+              {
+                waste_type_id: item1.waste_type_id,
+                vendor_id: item1.vendor_id,
+                quantity: qty1,
+                unit: item1.unit,
+                price_snapshot: item1.buy,
+                sell_price_snapshot: item1.sell,
+                subtotal: buySub1
+              },
+              {
+                waste_type_id: item2.waste_type_id,
+                vendor_id: item2.vendor_id,
+                quantity: qty2,
+                unit: item2.unit,
+                price_snapshot: item2.buy,
+                sell_price_snapshot: item2.sell,
+                subtotal: buySub2
+              }
+            ]
+          }
+        }
+      });
+
+      const detailsSummary = `Penimbangan setoran ${qty1} ${item1.unit} & ${qty2} ${item2.unit} (Total Rp ${Math.round(totalBuy).toLocaleString('id-ID')}) untuk Nasabah ${customerId}`;
+
+      // Also create a detailed audit log
+      await prisma.auditLog.create({
+        data: {
+          action: 'DEPOSIT_WEIGHING',
+          entity: 'TransaksiPenimbangan',
+          entity_id: String(createdTx.transaction_id),
+          details_summary: detailsSummary,
+          timestamp: txDate,
+          user_id: 'admin-pos-ba'
+        }
+      });
+    }
+  }
+
+  // Seed Historical Withdrawals
+  const withdrawalAmounts = [50000, 30000, 100000, 25000, 75000, 50000, 120000];
+  for (let i = 0; i < 15; i++) {
+    const mCfg = monthsConfig[i % monthsConfig.length];
+    const maxDayForMonth = (mCfg.year === 2026 && mCfg.month === 7) ? 18 : 28;
+    const day = Math.floor(Math.random() * maxDayForMonth) + 1;
+    let wdDate = new Date(mCfg.year, mCfg.month, day, 10, 30);
+    if (wdDate > currentDateLimit) {
+      wdDate = new Date(2026, 7, 18, 8, 30);
+    }
+    const custId = sampleNasabahList[i % sampleNasabahList.length];
+    const amt = withdrawalAmounts[i % withdrawalAmounts.length];
+
+    const createdWd = await prisma.transaksiPenarikan.create({
+      data: {
+        customer_id: custId,
+        pos_id: 'BA',
+        amount: amt,
+        proof_image_url: 'https://res.cloudinary.com/demo/image/upload/v1312461204/sample_receipt.png',
+        withdrawal_date: wdDate,
+        created_by: 'admin-pos-ba'
+      }
+    });
+
+    const wdDetailsSummary = `Pencairan saldo tabungan sebesar Rp ${amt.toLocaleString('id-ID')} untuk Nasabah ${custId}`;
+
+    await prisma.auditLog.create({
+      data: {
+        action: 'BALANCE_WITHDRAWAL',
+        entity: 'TransaksiPenarikan',
+        entity_id: String(createdWd.withdrawal_id),
+        details_summary: wdDetailsSummary,
+        timestamp: wdDate,
+        user_id: 'admin-pos-ba'
+      }
+    });
+  }
+
+  console.log('Seeding Multi-Month Historical Transactions & Withdrawals complete.');
   console.log('Database seeding finished successfully!');
 }
 

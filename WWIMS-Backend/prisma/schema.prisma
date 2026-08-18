@@ -195,12 +195,13 @@ model TransaksiPenarikan {
 }
 
 model AuditLog {
-  log_id    Int      @id @default(autoincrement())
-  user_id   String?  @db.VarChar(20)
-  action    String   @db.VarChar(100)
-  entity    String   @db.VarChar(50)
-  entity_id String?  @db.VarChar(50)
-  timestamp DateTime @default(now())
+  log_id          Int      @id @default(autoincrement())
+  user_id         String?  @db.VarChar(20)
+  action          String   @db.VarChar(100)
+  entity          String   @db.VarChar(50)
+  entity_id       String?  @db.VarChar(50)
+  details_summary String?  @db.Text
+  timestamp       DateTime @default(now())
 
   creator User? @relation(fields: [user_id], references: [user_id])
 

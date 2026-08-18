@@ -123,11 +123,14 @@ router.post('/weigh', async (req, res) => {
       });
 
       // 4. Write audit log
+      const detailSummaryText = `Penimbangan setoran ${detailItems.map(d => `${d.quantity} ${d.unit}`).join(' & ')} (Total Rp ${Math.round(totalBuyValue).toLocaleString('id-ID')}) untuk Nasabah ${nasabah.name || customer_id}`;
+
       await tx.auditLog.create({
         data: {
           action: 'DEPOSIT_WEIGHING',
           entity: 'TransaksiPenimbangan',
           entity_id: String(newTransaction.transaction_id),
+          details_summary: detailSummaryText,
           user_id: created_by || 'admin-pos-ba'
         }
       });
@@ -197,6 +200,7 @@ router.post('/withdraw', async (req, res) => {
           action: 'BALANCE_WITHDRAWAL',
           entity: 'TransaksiPenarikan',
           entity_id: String(withdrawal.withdrawal_id),
+          details_summary: `Pencairan saldo tabungan sebesar Rp ${amtNum.toLocaleString('id-ID')} untuk Nasabah ${nasabah.name || customer_id}`,
           user_id: created_by || 'admin-pos-ba'
         }
       });
@@ -338,6 +342,342 @@ router.get('/metrics', async (req, res) => {
       totalPosProfit: parseFloat(weighingAggr._sum.pos_profit || 0),
       totalPusatProfit: parseFloat(weighingAggr._sum.pusat_profit || 0),
       totalWithdrawn: parseFloat(withdrawalAggr._sum.amount || 0)
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 5. Full report data aggregate for Laporan page charts & KPIs
+router.get('/report', async (req, res) => {
+  const { pos_id, period, month, year, semester, start_month, start_year } = req.query;
+
+  const targetYear = year || start_year;
+  if (!targetYear) {
+    return res.status(400).json({ error: 'year or start_year is required' });
+  }
+
+  const yr = parseInt(targetYear, 10);
+
+  try {
+    // Determine date range based on period
+    let startDate, endDate;
+    if (period === 'semester' || period === '6months') {
+      const startMo = parseInt(req.query.start_month || month || '1', 10) - 1;
+      const startYr = parseInt(req.query.start_year || year, 10);
+      startDate = new Date(startYr, startMo, 1);
+      endDate = new Date(startYr, startMo + 6, 1);
+    } else {
+      // monthly (default)
+      const mo = parseInt(month || '1', 10) - 1;
+      startDate = new Date(yr, mo, 1);
+      endDate = new Date(yr, mo + 1, 1);
+    }
+
+    const posFilter = pos_id ? { pos_id } : {};
+
+    // --- KPI Aggregations ---
+    const deposits = await prisma.transaksiPenimbangan.findMany({
+      where: {
+        ...posFilter,
+        transaction_date: { gte: startDate, lt: endDate }
+      },
+      include: {
+        customer: true,
+        details: {
+          include: {
+            waste_type: { include: { category: true } },
+            vendor: true
+          }
+        }
+      },
+      orderBy: { transaction_date: 'desc' }
+    });
+
+    const withdrawals = await prisma.transaksiPenarikan.findMany({
+      where: {
+        ...posFilter,
+        withdrawal_date: { gte: startDate, lt: endDate }
+      },
+      include: { customer: true },
+      orderBy: { withdrawal_date: 'desc' }
+    });
+
+    // KPI totals
+    let totalWeight = 0;
+    let totalBuyValue = 0;
+    let totalSellValue = 0;
+    let totalMargin = 0;
+    let totalPosProfit = 0;
+    let totalPusatProfit = 0;
+    const categoryWeightMap = {};
+    const wasteTypeWeightMap = {};
+    const nasabahWeightMap = {};
+
+    for (const dep of deposits) {
+      totalBuyValue += parseFloat(dep.total_buy_value);
+      totalSellValue += parseFloat(dep.total_sell_value);
+      totalMargin += parseFloat(dep.margin);
+      totalPosProfit += parseFloat(dep.pos_profit);
+      totalPusatProfit += parseFloat(dep.pusat_profit);
+
+      for (const det of dep.details) {
+        const qty = parseFloat(det.quantity);
+        totalWeight += qty;
+
+        // Category aggregation
+        const catName = det.waste_type?.category?.category_name || 'Lainnya';
+        categoryWeightMap[catName] = (categoryWeightMap[catName] || 0) + qty;
+
+        // Waste type aggregation
+        const wtName = det.waste_type?.waste_name || 'Unknown';
+        wasteTypeWeightMap[wtName] = (wasteTypeWeightMap[wtName] || 0) + qty;
+      }
+
+      // Nasabah aggregation
+      const custName = dep.customer?.name || dep.customer_id;
+      nasabahWeightMap[custName] = (nasabahWeightMap[custName] || 0) +
+        dep.details.reduce((s, d) => s + parseFloat(d.quantity), 0);
+    }
+
+    let totalWithdrawn = 0;
+    for (const wd of withdrawals) {
+      totalWithdrawn += parseFloat(wd.amount);
+    }
+
+    // --- Monthly trend data (always provide 6 or 12 months of context) ---
+    const trendMonths = period === 'semester' ? 6 : 6;
+    const trendStart = new Date(startDate);
+    trendStart.setMonth(trendStart.getMonth() - (trendMonths - 1));
+
+    const monthlyTrends = [];
+    for (let i = 0; i < trendMonths; i++) {
+      const mStart = new Date(trendStart);
+      mStart.setMonth(mStart.getMonth() + i);
+      const mEnd = new Date(mStart);
+      mEnd.setMonth(mEnd.getMonth() + 1);
+
+      const mDeposits = await prisma.transaksiPenimbangan.findMany({
+        where: {
+          ...posFilter,
+          transaction_date: { gte: mStart, lt: mEnd }
+        },
+        include: { details: true }
+      });
+
+      const mWithdrawals = await prisma.transaksiPenarikan.aggregate({
+        where: {
+          ...posFilter,
+          withdrawal_date: { gte: mStart, lt: mEnd }
+        },
+        _sum: { amount: true },
+        _count: true
+      });
+
+      let mWeight = 0;
+      let mBuyValue = 0;
+      let mPosProfit = 0;
+      let mPusatProfit = 0;
+      for (const d of mDeposits) {
+        mBuyValue += parseFloat(d.total_buy_value);
+        mPosProfit += parseFloat(d.pos_profit);
+        mPusatProfit += parseFloat(d.pusat_profit);
+        for (const det of d.details) {
+          mWeight += parseFloat(det.quantity);
+        }
+      }
+
+      // Active nasabah count for this month
+      const activeNasabah = await prisma.nasabah.count({
+        where: {
+          ...posFilter,
+          is_active: true,
+          created_at: { lt: mEnd }
+        }
+      });
+
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+      monthlyTrends.push({
+        label: `${monthNames[mStart.getMonth()]} ${mStart.getFullYear()}`,
+        month: mStart.getMonth() + 1,
+        year: mStart.getFullYear(),
+        totalWeight: Math.round(mWeight * 100) / 100,
+        totalBuyValue: Math.round(mBuyValue),
+        totalWithdrawn: parseFloat(mWithdrawals._sum.amount || 0),
+        transactionCount: mDeposits.length,
+        posProfit: Math.round(mPosProfit),
+        pusatProfit: Math.round(mPusatProfit),
+        activeNasabah
+      });
+    }
+
+    // --- Category composition for donut chart ---
+    const categoryComposition = Object.entries(categoryWeightMap)
+      .map(([name, weight]) => ({
+        category: name,
+        weight: Math.round(weight * 100) / 100,
+        percentage: totalWeight > 0 ? Math.round((weight / totalWeight) * 10000) / 100 : 0
+      }))
+      .sort((a, b) => b.weight - a.weight);
+
+    // --- Top 10 waste types ---
+    const topWasteTypes = Object.entries(wasteTypeWeightMap)
+      .map(([name, weight]) => ({ name, weight: Math.round(weight * 100) / 100 }))
+      .sort((a, b) => b.weight - a.weight)
+      .slice(0, 10);
+
+    // --- Top 5 nasabah by weight ---
+    const topNasabah = Object.entries(nasabahWeightMap)
+      .map(([name, weight]) => ({ name, weight: Math.round(weight * 100) / 100 }))
+      .sort((a, b) => b.weight - a.weight)
+      .slice(0, 5);
+
+    res.json({
+      period: { type: period || 'monthly', startDate, endDate },
+      kpi: {
+        totalWeight: Math.round(totalWeight * 100) / 100,
+        totalBuyValue: Math.round(totalBuyValue),
+        totalSellValue: Math.round(totalSellValue),
+        totalWithdrawn: Math.round(totalWithdrawn),
+        totalTransactions: deposits.length,
+        totalWithdrawalCount: withdrawals.length,
+        totalMargin: Math.round(totalMargin),
+        totalPosProfit: Math.round(totalPosProfit),
+        totalPusatProfit: Math.round(totalPusatProfit)
+      },
+      monthlyTrends,
+      categoryComposition,
+      topWasteTypes,
+      topNasabah,
+      deposits: deposits.map(d => ({
+        id: d.transaction_id,
+        date: d.transaction_date,
+        customer_id: d.customer_id,
+        customer_name: d.customer?.name,
+        totalBuyValue: parseFloat(d.total_buy_value),
+        totalSellValue: parseFloat(d.total_sell_value),
+        margin: parseFloat(d.margin),
+        posProfit: parseFloat(d.pos_profit),
+        pusatProfit: parseFloat(d.pusat_profit),
+        nasabahCredit: parseFloat(d.nasabah_credit),
+        details: d.details.map(det => ({
+          wasteName: det.waste_type?.waste_name,
+          category: det.waste_type?.category?.category_name,
+          quantity: parseFloat(det.quantity),
+          unit: det.unit,
+          buyPrice: parseFloat(det.price_snapshot),
+          sellPrice: parseFloat(det.sell_price_snapshot),
+          subtotal: parseFloat(det.subtotal)
+        }))
+      })),
+      withdrawals: withdrawals.map(w => ({
+        id: w.withdrawal_id,
+        date: w.withdrawal_date,
+        customer_id: w.customer_id,
+        customer_name: w.customer?.name,
+        amount: parseFloat(w.amount),
+        proof_image_url: w.proof_image_url
+      }))
+    });
+  } catch (error) {
+    console.error('Report error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 6. Paginated deposit list (replaces SAMPLE_TRANSACTIONS)
+router.get('/deposits', async (req, res) => {
+  const { pos_id, limit, offset } = req.query;
+  const take = limit ? parseInt(limit, 10) : 50;
+  const skip = offset ? parseInt(offset, 10) : 0;
+
+  try {
+    const filter = pos_id ? { pos_id } : {};
+    const deposits = await prisma.transaksiPenimbangan.findMany({
+      where: filter,
+      include: {
+        customer: true,
+        details: {
+          include: {
+            waste_type: { include: { category: true } },
+            vendor: true
+          }
+        }
+      },
+      orderBy: { transaction_date: 'desc' },
+      take,
+      skip
+    });
+
+    const total = await prisma.transaksiPenimbangan.count({ where: filter });
+
+    res.json({
+      data: deposits.map(d => ({
+        id: d.transaction_id,
+        customer_id: d.customer_id,
+        customer_name: d.customer?.name,
+        pos_id: d.pos_id,
+        date: d.transaction_date,
+        totalWeight: d.details.reduce((s, det) => s + parseFloat(det.quantity), 0),
+        totalBuyValue: parseFloat(d.total_buy_value),
+        totalSellValue: parseFloat(d.total_sell_value),
+        margin: parseFloat(d.margin),
+        posProfit: parseFloat(d.pos_profit),
+        pusatProfit: parseFloat(d.pusat_profit),
+        nasabahCredit: parseFloat(d.nasabah_credit),
+        created_by: d.created_by,
+        details: d.details.map(det => ({
+          wasteName: det.waste_type?.waste_name,
+          category: det.waste_type?.category?.category_name,
+          vendorName: det.vendor?.vendor_name,
+          quantity: parseFloat(det.quantity),
+          unit: det.unit,
+          buyPrice: parseFloat(det.price_snapshot),
+          sellPrice: parseFloat(det.sell_price_snapshot),
+          subtotal: parseFloat(det.subtotal)
+        }))
+      })),
+      total,
+      limit: take,
+      offset: skip
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 7. Paginated withdrawal list (replaces SAMPLE_WITHDRAWALS)
+router.get('/withdrawals', async (req, res) => {
+  const { pos_id, limit, offset } = req.query;
+  const take = limit ? parseInt(limit, 10) : 50;
+  const skip = offset ? parseInt(offset, 10) : 0;
+
+  try {
+    const filter = pos_id ? { pos_id } : {};
+    const withdrawals = await prisma.transaksiPenarikan.findMany({
+      where: filter,
+      include: { customer: true },
+      orderBy: { withdrawal_date: 'desc' },
+      take,
+      skip
+    });
+
+    const total = await prisma.transaksiPenarikan.count({ where: filter });
+
+    res.json({
+      data: withdrawals.map(w => ({
+        id: w.withdrawal_id,
+        customer_id: w.customer_id,
+        customer_name: w.customer?.name,
+        pos_id: w.pos_id,
+        amount: parseFloat(w.amount),
+        proof_image_url: w.proof_image_url,
+        date: w.withdrawal_date,
+        created_by: w.created_by
+      })),
+      total,
+      limit: take,
+      offset: skip
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

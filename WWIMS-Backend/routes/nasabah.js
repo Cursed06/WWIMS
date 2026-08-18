@@ -5,13 +5,19 @@ const router = express.Router();
 
 // Search and get nasabah list (with data isolation if pos_id provided)
 router.get('/', async (req, res) => {
-  const { pos_id, search } = req.query;
+  const { pos_id, search, status } = req.query;
 
   try {
-    const whereClause = { is_active: true };
+    const whereClause = {};
 
     if (pos_id) {
       whereClause.pos_id = pos_id;
+    }
+
+    if (status === 'ACTIVE') {
+      whereClause.is_active = true;
+    } else if (status === 'INACTIVE') {
+      whereClause.is_active = false;
     }
 
     if (search) {
@@ -21,17 +27,21 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    // Limit to 50 for quick performance (<1s)
     const nasabahs = await prisma.nasabah.findMany({
       where: whereClause,
       include: {
         pos: true
       },
-      take: 50,
-      orderBy: { customer_id: 'asc' }
+      take: 100,
+      orderBy: { created_at: 'desc' }
     });
 
-    res.json(nasabahs);
+    const mapped = nasabahs.map(n => ({
+      ...n,
+      status: n.is_active ? 'ACTIVE' : 'INACTIVE'
+    }));
+
+    res.json(mapped);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -123,6 +133,7 @@ router.post('/', async (req, res) => {
         action: 'REGISTER_NASABAH',
         entity: 'Nasabah',
         entity_id: newNasabah.customer_id,
+        details_summary: `Pendaftaran nasabah baru: ${newNasabah.name} (${newNasabah.customer_id}) di POS ${cleanPosId}`,
         user_id: 'admin-pos-' + cleanPosId.toLowerCase()
       }
     });
@@ -135,11 +146,21 @@ router.post('/', async (req, res) => {
 
 // Edit nasabah
 router.put('/:id', async (req, res) => {
-  const { name, address, phone } = req.body;
+  const { name, address, phone, status, is_active } = req.body;
   try {
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (address !== undefined) updateData.address = address;
+    if (phone !== undefined) updateData.phone = phone;
+    if (is_active !== undefined) {
+      updateData.is_active = Boolean(is_active);
+    } else if (status !== undefined) {
+      updateData.is_active = (status === 'ACTIVE' || status === true);
+    }
+
     const updated = await prisma.nasabah.update({
       where: { customer_id: req.params.id },
-      data: { name, address, phone }
+      data: updateData
     });
 
     // Write audit log
@@ -148,11 +169,15 @@ router.put('/:id', async (req, res) => {
         action: 'UPDATE_NASABAH',
         entity: 'Nasabah',
         entity_id: req.params.id,
+        details_summary: `Pembaruan data nasabah: ${updated.name} (${req.params.id}) - Status: ${updated.is_active ? 'Aktif' : 'Tidak Aktif'}`,
         user_id: 'admin-pos-ba' // Simulation fallback
       }
     });
 
-    res.json(updated);
+    res.json({
+      ...updated,
+      status: updated.is_active ? 'ACTIVE' : 'INACTIVE'
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
